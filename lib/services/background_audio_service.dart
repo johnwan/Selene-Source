@@ -6,6 +6,8 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 
+import 'playback_settings.dart';
+
 /// Keeps Android's media session connected to the visible video player.
 /// The service retains the Flutter engine while the screen is off.
 class BackgroundAudioService {
@@ -13,6 +15,7 @@ class BackgroundAudioService {
 
   static Future<void> initialize() async {
     if (!Platform.isAndroid || handler != null) return;
+    await PlaybackSettings.instance.load();
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.speech());
     handler = await AudioService.init<BackgroundAudioHandler>(
@@ -38,6 +41,9 @@ class BackgroundAudioHandler extends BaseAudioHandler {
   Player? _player;
   bool _live = false;
   bool _stopped = false;
+  bool _backgroundEnabled = true;
+  bool _inBackground = false;
+  bool get _playbackAllowed => _backgroundEnabled || !_inBackground;
   int _commandGeneration = 0;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   Future<void> _focusUpdate = Future<void>.value();
@@ -52,6 +58,9 @@ class BackgroundAudioHandler extends BaseAudioHandler {
     void refresh(dynamic _) => _publish();
     _subscriptions.addAll([
       player.stream.playing.listen((playing) {
+        if (playing && !_playbackAllowed) {
+          unawaited(pause());
+        }
         if (playing) _stopped = false;
         _publish();
         _syncAudioFocus();
@@ -76,6 +85,17 @@ class BackgroundAudioHandler extends BaseAudioHandler {
       }),
     ]);
     _publish();
+  }
+
+  void updateBackgroundPolicy(
+    Player player, {
+    required bool enabled,
+    required bool isBackground,
+  }) {
+    if (!identical(player, _player)) return;
+    _backgroundEnabled = enabled;
+    _inBackground = isBackground;
+    if (!_playbackAllowed) unawaited(pause());
   }
 
   void updateMetadata(Player player, MediaItem item, {bool live = false}) {
@@ -107,50 +127,60 @@ class BackgroundAudioHandler extends BaseAudioHandler {
     if (_session == null) return;
     // Serialize activation and release so a late pause cannot steal focus
     // from a replacement player or a quick notification resume.
-    _focusUpdate = _focusUpdate.then<void>((_) async {
-      final player = _player;
-      final playing = player != null &&
-          player.state.playing &&
-          !player.state.completed &&
-          !_stopped;
-      final allowed = await _session.setActive(playing);
-      if (playing && !allowed && identical(player, _player)) {
-        await player.pause();
-      }
-    }).catchError((Object error) async {
-      // Failed focus requests must not allow competing background audio.
-      if (_player?.state.playing ?? false) await pause();
-    });
+    _focusUpdate = _focusUpdate
+        .then<void>((_) async {
+          final player = _player;
+          final playing =
+              player != null &&
+              player.state.playing &&
+              !player.state.completed &&
+              !_stopped &&
+              _playbackAllowed;
+          final allowed = await _session.setActive(playing);
+          if (playing && !allowed && identical(player, _player)) {
+            await player.pause();
+          }
+        })
+        .catchError((Object error) async {
+          // Failed focus requests must not allow competing background audio.
+          if (_player?.state.playing ?? false) await pause();
+        });
   }
 
   void _publish() {
     final player = _player;
     if (player == null) return;
     final state = player.state;
-    final playing = state.playing && !state.completed && !_stopped;
-    playbackState.add(PlaybackState(
-      controls: [
-        if (playing) MediaControl.pause else MediaControl.play,
-        MediaControl.stop,
-      ],
-      systemActions: {if (!_live) MediaAction.seek},
-      androidCompactActionIndices: const [0, 1],
-      processingState: _stopped
-          ? AudioProcessingState.idle
-          : state.completed
-              ? AudioProcessingState.completed
-              : state.buffering
-                  ? AudioProcessingState.buffering
-                  : AudioProcessingState.ready,
-      playing: playing,
-      updatePosition: state.position,
-      bufferedPosition: state.buffer,
-      speed: state.rate,
-    ));
+    final playing =
+        state.playing && !state.completed && !_stopped && _playbackAllowed;
+    playbackState.add(
+      PlaybackState(
+        controls: [
+          if (playing) MediaControl.pause else MediaControl.play,
+          MediaControl.stop.copyWith(
+            androidIcon: 'drawable/ic_notification_stop',
+          ),
+        ],
+        systemActions: {if (!_live) MediaAction.seek},
+        androidCompactActionIndices: const [0, 1],
+        processingState: _stopped
+            ? AudioProcessingState.idle
+            : state.completed
+            ? AudioProcessingState.completed
+            : state.buffering
+            ? AudioProcessingState.buffering
+            : AudioProcessingState.ready,
+        playing: playing,
+        updatePosition: state.position,
+        bufferedPosition: state.buffer,
+        speed: state.rate,
+      ),
+    );
   }
 
   @override
   Future<void> play() async {
+    if (!_playbackAllowed) return;
     _commandGeneration++;
     _stopped = false;
     await _player?.play();

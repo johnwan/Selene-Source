@@ -71,8 +71,9 @@ class TestAudioSession extends Fake implements AudioSession {
   bool allow = true;
   final activations = <bool>[];
   final noisy = StreamController<void>.broadcast(sync: true);
-  final interruptions =
-      StreamController<AudioInterruptionEvent>.broadcast(sync: true);
+  final interruptions = StreamController<AudioInterruptionEvent>.broadcast(
+    sync: true,
+  );
 
   @override
   Stream<void> get becomingNoisyEventStream => noisy.stream;
@@ -135,10 +136,14 @@ void main() {
     await handler.stop();
     expect(player.state.playing, isFalse);
     expect(
-        handler.playbackState.value.processingState, AudioProcessingState.idle);
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
     await handler.play();
-    expect(handler.playbackState.value.processingState,
-        AudioProcessingState.ready);
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
     expect(handler.playbackState.value.playing, isTrue);
   });
 
@@ -150,42 +155,57 @@ void main() {
     await stopping;
     expect(player.state.playing, isFalse);
     expect(
-        handler.playbackState.value.processingState, AudioProcessingState.idle);
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
   });
 
   test('closing an old player cannot clear a newer session', () async {
     final replacement = TestPlayer();
-    handler.attach(replacement, const MediaItem(id: 'live', title: 'Live'),
-        live: true);
+    handler.attach(
+      replacement,
+      const MediaItem(id: 'live', title: 'Live'),
+      live: true,
+    );
     await handler.detach(player);
     expect(handler.mediaItem.value?.id, 'live');
-    expect(handler.playbackState.value.systemActions,
-        isNot(contains(MediaAction.seek)));
+    expect(
+      handler.playbackState.value.systemActions,
+      isNot(contains(MediaAction.seek)),
+    );
     await handler.detach(replacement);
   });
 
-  test('closing the active player removes metadata and foreground state',
-      () async {
-    await handler.play();
-    await handler.detach(player);
-    expect(handler.mediaItem.value, isNull);
-    expect(handler.playbackState.value.playing, isFalse);
-    expect(
-        handler.playbackState.value.processingState, AudioProcessingState.idle);
-    await player.play();
-    expect(handler.playbackState.value.playing, isFalse);
-  });
+  test(
+    'closing the active player removes metadata and foreground state',
+    () async {
+      await handler.play();
+      await handler.detach(player);
+      expect(handler.mediaItem.value, isNull);
+      expect(handler.playbackState.value.playing, isFalse);
+      expect(
+        handler.playbackState.value.processingState,
+        AudioProcessingState.idle,
+      );
+      await player.play();
+      expect(handler.playbackState.value.playing, isFalse);
+    },
+  );
 
   test('completion and task removal release foreground playback', () async {
     await handler.play();
     player.value = player.value.copyWith(completed: true);
     player.completed.add(true);
     expect(handler.playbackState.value.playing, isFalse);
-    expect(handler.playbackState.value.processingState,
-        AudioProcessingState.completed);
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.completed,
+    );
     await handler.onTaskRemoved();
     expect(
-        handler.playbackState.value.processingState, AudioProcessingState.idle);
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
   });
 
   test('denied audio focus pauses playback', () async {
@@ -222,5 +242,53 @@ void main() {
     await handler.play();
     player.error.add('Decoder fallback');
     expect(handler.playbackState.value.playing, isTrue);
+  });
+
+  test(
+    'disabled background playback pauses and blocks remote resume',
+    () async {
+      await handler.play();
+      handler.updateBackgroundPolicy(
+        player,
+        enabled: false,
+        isBackground: true,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(player.state.playing, isFalse);
+      await handler.play();
+      expect(player.state.playing, isFalse);
+      handler.updateBackgroundPolicy(
+        player,
+        enabled: false,
+        isBackground: false,
+      );
+      expect(player.state.playing, isFalse);
+      await handler.play();
+      expect(player.state.playing, isTrue);
+    },
+  );
+
+  test(
+    'disabled background playback also pauses direct player starts',
+    () async {
+      handler.updateBackgroundPolicy(
+        player,
+        enabled: false,
+        isBackground: true,
+      );
+      await player.play();
+      await Future<void>.delayed(Duration.zero);
+      expect(player.state.playing, isFalse);
+      expect(handler.playbackState.value.playing, isFalse);
+    },
+  );
+
+  test('old player cannot disable a replacement session', () async {
+    final replacement = TestPlayer();
+    handler.attach(replacement, const MediaItem(id: 'next', title: 'Next'));
+    handler.updateBackgroundPolicy(player, enabled: false, isBackground: true);
+    await handler.play();
+    expect(replacement.state.playing, isTrue);
+    await handler.detach(replacement);
   });
 }

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:selene/services/background_audio_service.dart';
 import 'package:selene/widgets/video_player_widget.dart';
+import 'package:selene/widgets/user_menu.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,7 +45,22 @@ class _PlaybackSmokeTestState extends State<PlaybackSmokeTest> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Background audio test')),
+        appBar: AppBar(
+          title: const Text('Selene'),
+          actions: [
+            IconButton(
+              tooltip: 'Settings',
+              icon: const Icon(Icons.settings),
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (dialogContext) => UserMenu(
+                  isDarkMode: false,
+                  onClose: () => Navigator.of(dialogContext).pop(),
+                ),
+              ),
+            ),
+          ],
+        ),
         body: Column(children: [
           if (!_closed)
             SizedBox(
@@ -53,7 +69,7 @@ class _PlaybackSmokeTestState extends State<PlaybackSmokeTest> {
                 url: const String.fromEnvironment('SMOKE_MEDIA_URL',
                     defaultValue: 'https://storage.googleapis.com/'
                         'gtv-videos-bucket/sample/BigBuckBunny.mp4'),
-                videoTitle: 'Selene screen-off test',
+                videoTitle: 'Big Buck Bunny',
                 live: const bool.fromEnvironment('SMOKE_LIVE'),
                 onControllerCreated: (controller) => _controller = controller,
               ),

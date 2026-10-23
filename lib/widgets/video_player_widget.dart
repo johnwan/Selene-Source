@@ -6,6 +6,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:pip/pip.dart';
 import 'package:audio_service/audio_service.dart';
 import '../services/background_audio_service.dart';
+import '../services/playback_settings.dart';
 import 'mobile_player_controls.dart';
 import 'pc_player_controls.dart';
 import 'video_player_surface.dart';
@@ -142,11 +143,17 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
   VoidCallback? _exitWebFullscreenCallback;
   final Pip _pip = Pip();
   bool _isPipMode = false;
+  bool _inBackground = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _inBackground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.paused ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.hidden;
+    if (Platform.isAndroid) {
+      PlaybackSettings.instance.addListener(_onPlaybackSettingsChanged);
+    }
     _currentUrl = widget.url;
     _currentHeaders = widget.headers;
     _initializePlayer();
@@ -175,6 +182,20 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
         isLive: widget.live,
       );
 
+  void _syncBackgroundPolicy() {
+    final player = _player;
+    if (Platform.isAndroid && player != null) {
+      BackgroundAudioService.handler?.updateBackgroundPolicy(player,
+          enabled: PlaybackSettings.instance.backgroundPlaybackEnabled,
+          isBackground: _inBackground);
+    }
+  }
+
+  void _onPlaybackSettingsChanged() {
+    _syncBackgroundPolicy();
+    if (mounted && !_playerDisposed) setState(() {});
+  }
+
   void _updateBackgroundMetadata() {
     final player = _player;
     if (Platform.isAndroid && player != null) {
@@ -195,6 +216,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
       BackgroundAudioService.handler?.attach(
         _player!, _backgroundMediaItem, live: widget.live,
       );
+      _syncBackgroundPolicy();
     }
     if (_currentUrl != null) {
       await _openCurrentMedia();
@@ -477,12 +499,16 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
     }
     switch (state) {
       case AppLifecycleState.paused:
-      case AppLifecycleState.inactive:
       case AppLifecycleState.hidden:
+      case AppLifecycleState.detached:
+        _inBackground = true;
+        _syncBackgroundPolicy();
         break;
       case AppLifecycleState.resumed:
+        _inBackground = false;
+        _syncBackgroundPolicy();
         break;
-      case AppLifecycleState.detached:
+      case AppLifecycleState.inactive:
         break;
     }
   }
@@ -490,6 +516,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    if (Platform.isAndroid) {
+      PlaybackSettings.instance.removeListener(_onPlaybackSettingsChanged);
+    }
     if (Platform.isAndroid || Platform.isIOS) {
       _pip.unregisterStateChangedObserver();
       _pip.dispose();
@@ -506,7 +535,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
       child: _isInitialized && _videoController != null
           ? Video(
               controller: _videoController!,
-              pauseUponEnteringBackgroundMode: !Platform.isAndroid,
+              pauseUponEnteringBackgroundMode: !Platform.isAndroid ||
+                  !PlaybackSettings.instance.backgroundPlaybackEnabled,
               controls: (state) {
                 return widget.surface == VideoPlayerSurface.desktop
                     ? PCPlayerControls(

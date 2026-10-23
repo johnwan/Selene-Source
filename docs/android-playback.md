@@ -5,6 +5,12 @@ background. The notification and lock screen expose play, pause, stop, and (for
 on-demand content) seeking. The service uses the existing media_kit player, so
 returning to the app keeps the same media, position, and playback speed.
 
+The Android user settings menu includes **后台播放** (background playback),
+enabled by default and saved across app restarts. Turn it off to pause when the
+app is hidden or the screen is locked. Background media controls cannot resume
+playback while it is disabled, and returning to the app does not auto-resume.
+Visible picture-in-picture playback remains available.
+
 Pausing releases the foreground service and CPU wake lock; stopping or closing
 the player also clears active playback. Unplugging headphones, losing audio
 focus, or dismissing the app from Recents pauses playback. Playback does not
@@ -69,7 +75,8 @@ the original application ID.
 ## Verification (2026-10-22)
 
 - Built the full Android ARM64 debug app with the toolchain above.
-- Nine automated playback, cleanup, race, and audio focus tests passed.
+- Fourteen automated playback, settings persistence, cleanup, race, and audio
+  focus tests passed.
 - Focused analysis of the changed playback code and test harness passed.
 - On the connected Android 17 phone, a local MP4 advanced from 3.083 seconds to
   25.500 seconds while the phone was dozing with no display suspend blocker.
@@ -77,6 +84,17 @@ the original application ID.
   and resumed the same player in the foreground service.
 - Closing the widget and pressing Stop cleared active media playback and removed
   foreground service state.
+- With background playback disabled, screen-off playback paused and a remote
+  Play command left it paused; returning to the app did not resume playback.
+- With background playback enabled, playback advanced from 148.166 to 158.291
+  seconds while the phone was dozing.
+
+Device screenshots use the smoke entry with the production player and user menu,
+a fresh test profile, and Big Buck Bunny rather than account-specific media:
+
+| Notification controls | Background playback toggle |
+| --- | --- |
+| ![Notification playback controls](screenshots/android-notification-controls.png) | ![Background playback enabled](screenshots/android-background-playback-settings.png) |
 
 The sample ran through the production video widget and audio handler. Actual
 network live streams and incoming-call handling were not tested on the device.
