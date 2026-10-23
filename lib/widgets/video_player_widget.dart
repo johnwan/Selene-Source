@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:pip/pip.dart';
+import 'package:audio_service/audio_service.dart';
+import '../services/background_audio_service.dart';
 import 'mobile_player_controls.dart';
 import 'pc_player_controls.dart';
 import 'video_player_surface.dart';
@@ -162,6 +164,24 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
     if (widget.url != oldWidget.url && widget.url != null) {
       unawaited(_updateDataSource(widget.url!));
     }
+    _updateBackgroundMetadata();
+  }
+
+  MediaItem get _backgroundMediaItem => MediaItem(
+        id: _currentUrl ?? '',
+        title: widget.videoTitle ?? 'Selene',
+        artist: widget.sourceName,
+        duration: widget.live ? null : _player?.state.duration,
+        isLive: widget.live,
+      );
+
+  void _updateBackgroundMetadata() {
+    final player = _player;
+    if (Platform.isAndroid && player != null) {
+      BackgroundAudioService.handler?.updateMetadata(
+        player, _backgroundMediaItem, live: widget.live,
+      );
+    }
   }
 
   Future<void> _initializePlayer() async {
@@ -171,6 +191,11 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
     _player = Player();
     _videoController = VideoController(_player!);
     _setupPlayerListeners();
+    if (Platform.isAndroid) {
+      BackgroundAudioService.handler?.attach(
+        _player!, _backgroundMediaItem, live: widget.live,
+      );
+    }
     if (_currentUrl != null) {
       await _openCurrentMedia();
     }
@@ -291,6 +316,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
       return;
     }
     _currentUrl = url;
+    _updateBackgroundMetadata();
     if (headers != null) {
       _currentHeaders = headers;
     }
@@ -435,6 +461,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
     _completedSubscription?.cancel();
     _durationSubscription?.cancel();
     _progressListeners.clear();
+    if (Platform.isAndroid && _player != null) {
+      await BackgroundAudioService.handler?.detach(_player!);
+    }
     await _player?.dispose();
     _player = null;
     _videoController = null;
@@ -477,6 +506,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
       child: _isInitialized && _videoController != null
           ? Video(
               controller: _videoController!,
+              pauseUponEnteringBackgroundMode: !Platform.isAndroid,
               controls: (state) {
                 return widget.surface == VideoPlayerSurface.desktop
                     ? PCPlayerControls(
