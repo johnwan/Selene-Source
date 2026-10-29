@@ -34,6 +34,7 @@ class PlayerScreen extends StatefulWidget {
   final String? stitle;
   final String? stype;
   final String? prefer;
+  final bool resumeRemote;
 
   const PlayerScreen({
     super.key,
@@ -44,6 +45,7 @@ class PlayerScreen extends StatefulWidget {
     this.stitle,
     this.stype,
     this.prefer,
+    this.resumeRemote = false,
   });
 
   @override
@@ -59,6 +61,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   String? _originalTvUrl;
   String _tvProxyPrefix = '';
   bool _handoffInFlight = false;
+  bool _skipInitialRemoteStart = false;
   late SystemUiOverlayStyle _originalStyle;
   bool _isInitialized = false;
   String? _errorMessage;
@@ -147,7 +150,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void initState() {
     super.initState();
-    _tvRoute = Platform.isAndroid && _tv.remoteSelected;
+    _tvRoute = Platform.isAndroid && (widget.resumeRemote || _tv.remoteSelected);
+    _skipInitialRemoteStart = widget.resumeRemote && _tvRoute;
     _tvDestinationRevision = _tv.destinationRevision;
     if (Platform.isAndroid) _tv.addListener(_onTvDestinationChanged);
     _refreshAnimationController = AnimationController(
@@ -321,6 +325,10 @@ class _PlayerScreenState extends State<PlayerScreen>
 
     // 设置播放
     if (!_isActiveLoad(loadGeneration)) return;
+    if (widget.resumeRemote && _tvRoute) {
+      playEpisodeIndex = _tv.status.episodeIndex;
+      playTime = _tv.status.positionMs ~/ 1000;
+    }
     startPlay(playEpisodeIndex, playTime);
   }
 
@@ -684,6 +692,11 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       _resolvedTvUrl = finalUrl;
       if (_tvRoute) {
+        if (_skipInitialRemoteStart) {
+          _skipInitialRemoteStart = false;
+          if (mounted) setState(() { _showSwitchLoadingOverlay = false; });
+          return;
+        }
         await _tv.startMedia(_tvMedia(finalUrl, startAt ?? _resumeStartAt));
         _resumeStartAt = null;
         if (mounted) setState(() { _showSwitchLoadingOverlay = false; });

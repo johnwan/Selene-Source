@@ -5,6 +5,13 @@ import 'package:selene/services/search_service.dart';
 import 'package:selene/services/user_data_service.dart';
 import '../services/theme_service.dart';
 import '../tv/tv_device_picker.dart';
+import '../tv/tv_floating_button.dart';
+import '../tv/tv_connection_service.dart';
+import '../tv/tv_models.dart';
+import '../screens/player_screen.dart';
+import '../screens/live_player_screen.dart';
+import '../models/live_channel.dart';
+import '../models/live_source.dart';
 import '../services/api_service.dart';
 import '../utils/device_utils.dart';
 import '../utils/font_utils.dart';
@@ -336,6 +343,16 @@ class _MainLayoutState extends State<MainLayout> {
                     if (widget.showBottomNav) _buildBottomNavBar(themeService),
                   ],
                 ),
+                if (Platform.isAndroid && MediaQuery.of(context).viewInsets.bottom == 0)
+                  Positioned(
+                    right: 16,
+                    bottom: widget.showBottomNav ? 82 : MediaQuery.of(context).padding.bottom + 16,
+                    child: TvFloatingButton(
+                      service: TvConnectionService.instance,
+                      onChoose: () => showTvDevicePicker(context),
+                      onOpenMedia: (media) => _openTvMedia(context, media),
+                    ),
+                  ),
                 // 用户菜单覆盖层 - 现在会覆盖整个屏幕包括navbar
                 if (_showUserMenu)
                   UserMenu(
@@ -770,13 +787,7 @@ class _MainLayoutState extends State<MainLayout> {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Android 显示电视连接；其他平台保留主题切换按钮。
-        if (Platform.isAndroid)
-          IconButton(
-            tooltip: '播放到电视',
-            onPressed: () => showTvDevicePicker(context),
-            icon: const Icon(Icons.tv),
-          )
-        else MouseRegion(
+        if (!Platform.isAndroid) MouseRegion(
           cursor:
               DeviceUtils.isPC() ? SystemMouseCursors.click : MouseCursor.defer,
           onEnter: DeviceUtils.isPC()
@@ -887,6 +898,20 @@ class _MainLayoutState extends State<MainLayout> {
         ),
       ],
     );
+  }
+
+  void _openTvMedia(BuildContext context, TvMedia media) {
+    final Widget screen;
+    if (media.kind == 'live') {
+      screen = LivePlayerScreen(
+        channel: LiveChannel(id: media.liveChannelId, tvgId: '', name: media.title, logo: '', group: '', url: media.url),
+        source: LiveSource(key: media.sourceId, name: media.sourceId, url: '', ua: media.headers['User-Agent'] ?? '', epg: '', from: '', disabled: false),
+        resumeRemote: true,
+      );
+    } else {
+      screen = PlayerScreen(source: media.sourceId, id: media.videoId, title: media.title, resumeRemote: true);
+    }
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
   }
 
   Widget _buildBottomNavBar(ThemeService themeService) {

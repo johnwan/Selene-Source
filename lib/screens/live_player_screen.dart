@@ -22,11 +22,13 @@ import '../tv/tv_remote_player.dart';
 class LivePlayerScreen extends StatefulWidget {
   final LiveChannel channel;
   final LiveSource source;
+  final bool resumeRemote;
 
   const LivePlayerScreen({
     super.key,
     required this.channel,
     required this.source,
+    this.resumeRemote = false,
   });
 
   @override
@@ -86,11 +88,15 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
   @override
   void initState() {
     super.initState();
-    _tvRoute = Platform.isAndroid && _tv.remoteSelected;
+    _tvRoute = Platform.isAndroid && (widget.resumeRemote || _tv.remoteSelected);
     _tvDestinationRevision = _tv.destinationRevision;
     if (Platform.isAndroid) _tv.addListener(_tvChanged);
     _currentChannel = widget.channel;
     _currentSource = widget.source;
+    if (widget.resumeRemote && _tvRoute) {
+      _lastRemoteChannel = '${_currentSource.key}:${_currentChannel.id}:${_currentChannel.url}';
+      _isLoading = false;
+    }
 
     // 初始化动画控制器
     _loadingAnimationController = AnimationController(
