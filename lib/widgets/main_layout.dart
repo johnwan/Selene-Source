@@ -347,7 +347,8 @@ class _MainLayoutState extends State<MainLayout> {
                   Positioned.fill(
                     child: TvFloatingButton(
                       service: TvConnectionService.instance,
-                      initialBottom: widget.showBottomNav ? 82 : MediaQuery.of(context).padding.bottom + 16,
+                      initialBottom: MediaQuery.of(context).padding.bottom +
+                          (widget.showBottomNav ? 110 : 16),
                       onChoose: () => showTvDevicePicker(context),
                       onOpenMedia: (media) => _openTvMedia(context, media),
                     ),
