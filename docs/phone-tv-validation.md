@@ -32,6 +32,8 @@ other. Selecting a destination does not wake or launch the TV app.
   the TV picker in a floating button and the dark-mode switch in the user menu.
   The floating button opens the current movie or live screen without sending a
   new play request; its metadata is retained for the current phone app process.
+  It starts as a compact icon, supports long-press dragging, expands on tap,
+  and automatically collapses after three seconds without interaction.
 - TV `lintDebug` reports **11 existing errors** in `MainActivity.kt` back-event
   handling and `SoftwareCodec.kt` opt-in declarations. Those declarations are
   present in the TV base commit; the feature adds no lint errors. Flutter also

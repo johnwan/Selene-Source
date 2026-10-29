@@ -344,11 +344,10 @@ class _MainLayoutState extends State<MainLayout> {
                   ],
                 ),
                 if (Platform.isAndroid && MediaQuery.of(context).viewInsets.bottom == 0)
-                  Positioned(
-                    right: 16,
-                    bottom: widget.showBottomNav ? 82 : MediaQuery.of(context).padding.bottom + 16,
+                  Positioned.fill(
                     child: TvFloatingButton(
                       service: TvConnectionService.instance,
+                      initialBottom: widget.showBottomNav ? 82 : MediaQuery.of(context).padding.bottom + 16,
                       onChoose: () => showTvDevicePicker(context),
                       onOpenMedia: (media) => _openTvMedia(context, media),
                     ),
