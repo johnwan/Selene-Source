@@ -148,7 +148,7 @@ Maximum body 256 KiB, maximum 2,000 episodes, maximum 16 allowed stream headers,
 
 - [x] Run full phone `flutter test --no-pub`, focused `flutter analyze --no-pub`, and ARM64 debug build. Run TV `gradlew.bat testDebugUnitTest`, debug build and focused lint; fix any failures introduced by this feature.
 - [ ] Use an Android TV emulator for repeatable first-approval/decline, reconnection, revocation, movie/live and failure tests. Use an Android test sender or phone emulator when no physical phone is connected. Configure debug x86_64 APK support only if the existing TV ABI split prevents emulator installation.
-- [ ] Test real app-to-app TLS and NSD where network permits; emulator forwarded-port tests alone do not count as NSD evidence. Report physical-TV or LAN-router cases as pending until available.
+- [x] Test real app-to-app TLS and NSD where network permits; emulator forwarded-port tests alone do not count as NSD evidence. Report physical-TV or LAN-router cases as pending until available.
 - [ ] Verify phone screen-off/kill, TV physical controls/Back, stream failure, IP/network change, two clients/takeover and delayed commands; confirm TV playback survives disconnect and reconnect does not replay.
 - [x] Review both final diffs, shared fixtures and credential/log handling. Commit fixes, rerun only affected checks, and document limitations accurately.
 - [x] Build normal APKs preserving application IDs/signing; install to already-authorized phone when reachable. Obtain explicit approval before any TV replacement requiring data loss.
@@ -161,7 +161,7 @@ checks pass, normal APKs are built, and the phone update is installed. Some
 original checklist items combine several device/provider scenarios; those remain
 unchecked where the entire matrix was not exercised. See
 [validation evidence and pending manual checks](../../phone-tv-validation.md).
-Physical TV access remains unavailable because ADB authorization is pending.
+Real SHIELD API 30 checks now pass over Wi-Fi: discovery, first approval, movie/live routing, episode handoff, phone Back/kill/screen-off continuity, TV Back exit, and full-screen window bounds. Provider/network-change/two-phone device matrices remain manual checks.
 No integration or merge has been performed.
 
 ## Plan self-review

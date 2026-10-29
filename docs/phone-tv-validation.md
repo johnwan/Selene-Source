@@ -19,7 +19,7 @@ other. Selecting a destination does not wake or launch the TV app.
 
 ## Automated checks (2026-10-29)
 
-- Phone: `flutter test --no-pub`, **30 passed**. Focused analysis of `lib/tv`,
+- Phone: `flutter test --no-pub`, **31 passed**. Focused analysis of `lib/tv`,
   `test/tv`, and the isolated device harness: **no issues**.
 - TV: `gradlew.bat testDebugUnitTest`, **202 passed**, including **16 new remote
   tests**. ARM64/ARMv7 debug builds and the x86_64 debug receiver build succeeded.
@@ -27,6 +27,9 @@ other. Selecting a destination does not wake or launch the TV app.
   status after a newer selection, TV episode identity and local handoff, scoped
   pairing recovery, ownership/takeover, request deduplication, real TLS pinning,
   and removal of sensitive stream headers across cross-origin redirects.
+- The phone replay regression confirms that Play after Stop starts a new remote
+  session instead of sending a command to the released player. Android places
+  the TV picker in the top bar and the dark-mode switch in the user menu.
 - TV `lintDebug` reports **11 existing errors** in `MainActivity.kt` back-event
   handling and `SoftwareCodec.kt` opt-in declarations. Those declarations are
   present in the TV base commit; the feature adds no lint errors. Flutter also
@@ -34,33 +37,51 @@ other. Selecting a destination does not wake or launch the TV app.
 
 ## Device evidence and limits
 
-The real Samsung SM-S936U phone used an isolated `.tvqa` installation with fake
-account data. The receiver was the real Selene-TV APK running on an API 37
-Android emulator at TV resolution (a phone system image, not Android TV firmware).
-Pinned HTTPS traffic used an ADB-forwarded port; no account credentials were
-copied. The normal Selene installation was preserved.
+Initial receiver checks used an API 37 Android emulator at TV resolution (a
+phone system image). Subsequent checks used the real Samsung SM-S936U phone
+and an authorized SHIELD Android TV running API 30, over the user's Wi-Fi.
+The phone harness used an isolated `.tvqa` installation and fake account data;
+its production movie/live screens used the real TV connection service.
 
-Verified: first decline/Allow with TV D-pad input, stored trust after receiver
-restart, actual phone movie and live screens routing without a local media
-session or phone progress writes, requested movie resume position, pause, seek,
-resume and Stop. Playback continued while the phone's screen was off and after
-its test process was killed. Reconnection did not replay media. TV D-pad episode
-selection changed the reported episode/title/media identity, and physical Back
-released the session. The live-path check used an MP4 test stream; it does not
-establish compatibility with every live provider or codec.
+Verified on the physical devices:
 
-NSD registration and the actual advertised port were verified on the receiver.
-End-to-end discovery across the user's Wi-Fi/router, physical Android TV behavior,
-network changes during playback, provider-specific authenticated HLS/DRM, and
-physical-device two-phone takeover remain manual checks. The network ADB target
-`192.168.1.192:5555` was unauthorized and was not modified.
+- The phone automatically discovered the SHIELD. The user approved the native TV
+  dialog. Pinned HTTPS connected directly over Wi-Fi, without ADB port forwarding.
+- The TV test app signed into the requested server. The installed release uses
+  a different signing key, so its data-preserving update was rejected. A separate
+  `org.moontechlab.selenetv.tvqa` test app preserved the original TV app and data.
+- Movie and live paths played on the TV with no phone media session or phone
+  history writes. The live-path fixture was an MP4, not a broadcast/HLS provider.
+- TV D-pad selection advanced to episode 2 and changed status title/media ID.
+  **Play here** stopped the TV and resumed episode 2 on the phone at the TV's
+  position. Phone progress logs confirmed episode 2 and media requests then came
+  from the phone rather than the TV.
+- Killing and reopening the phone test process retained the same TV playback
+  session and did not show another approval dialog or replay the stream.
+- While the phone was locked/dozing, TV position advanced from 55.744 to 63.744
+  seconds. Back on the phone returned to its home screen while the same TV
+  session continued playing.
+- A physical-TV regression exposed swallowed Back events in the live Dialog.
+  The device check failed before the fix and passed afterward: native TV Back
+  exits playback and releases the session. Existing layered Back behavior
+  (hide controls, then confirm exit) is retained.
+- A second physical-TV regression exposed an inset live window:
+  `[0,60][1920,1019]` instead of `[0,0][1920,1080]` on the logical display.
+  Forcing the remote Dialog to match both display dimensions passed the same
+  bounds check, and a new screenshot plus user confirmation verified no home
+  content showing around the video. TV Back still passed after this fix.
 
-The final regular phone APK was installed successfully as
-`org.moontechlab.selene`, version 1.6.9 (4159), using a data-preserving update.
-The temporary `.tvqa` app was removed. The final phone UI handoff check was
-limited by the phone locking again; the episode/position handoff regression
-passes in the service tests, and the rebuilt TV's native episode change was
-verified on-device.
+Earlier emulator checks also covered first decline, requested 42-second movie
+resume, pause, seek, resume, Stop, and persisted TLS/trust across receiver restart.
+Provider-specific authenticated HLS/DRM, network changes during playback, and
+physical-device two-phone takeover remain manual checks.
+
+The final regular phone APK remains `org.moontechlab.selene`, version 1.6.9
+(4159), installed using a data-preserving update. The temporary phone test app
+was removed after the checks and its original 30-second screen timeout restored.
+The SHIELD test app remains signed in and the sample stream was restarted after
+the exit checks. Only the sample movie history entry was removed from the server,
+after explicit user approval. No credentials or account screenshots are committed.
 
 ## Implementation decisions and independent review
 
@@ -94,6 +115,15 @@ checkout is `.local/Selene-TV-source`. Protocol details and shared JSON fixtures
 are committed separately in both repositories.
 
 The fake-account phone harness is `test/device/tv_playback_smoke.dart`. Always
-build it with Gradle property `seleneApplicationIdSuffix=.tvqa`; never install it
-over the regular app. Its forwarded-port setup is for controlled QA only. Local
-QA keys, logs and test media are ignored and must not be attached to PRs.
+build it with the explicit Flutter argument
+`--android-project-arg=seleneApplicationIdSuffix=.tvqa`; verify the APK package ID
+before installation. Never install the fake-account entry over the regular app.
+`--dart-define=TV_QA_MEDIA_URL=<reachable-LAN-URL>` supplies a sample reachable by
+both physical devices. The emulator default is `10.0.2.2:8765`.
+
+TV `-PseleneTestApplicationIdSuffix=.tvqa` creates the separately named debug
+test app; normal and release builds retain their application ID and name.
+TV `tools/qa/remote-live-back.ps1` and `remote-player-fullscreen.ps1` are reusable
+physical-device regressions. Pass an authenticated status-reader script block
+and the target ADB serial; credentials are deliberately outside those scripts.
+Local QA keys, logs and test media are ignored and must not be attached to PRs.

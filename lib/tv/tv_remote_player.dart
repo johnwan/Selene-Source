@@ -81,9 +81,16 @@ class TvRemotePlayer extends StatelessWidget {
                     IconButton(
                       tooltip: status.state == 'playing' ? '暂停电视播放' : '播放电视视频',
                       onPressed: connected && owned
-                          ? () => service.send(
-                              status.state == 'playing' ? 'pause' : 'play',
-                            )
+                          ? () {
+                              if (status.state == 'idle' &&
+                                  service.media != null) {
+                                service.startMedia(service.media!);
+                              } else {
+                                service.send(
+                                  status.state == 'playing' ? 'pause' : 'play',
+                                );
+                              }
+                            }
                           : null,
                       icon: Icon(
                         status.state == 'playing'

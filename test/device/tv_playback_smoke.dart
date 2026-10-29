@@ -18,7 +18,10 @@ import 'package:selene/screens/live_player_screen.dart';
 import 'package:selene/models/live_channel.dart';
 import 'package:selene/models/live_source.dart';
 
-const sample = 'http://10.0.2.2:8765/sample.mp4';
+const sample = String.fromEnvironment(
+  'TV_QA_MEDIA_URL',
+  defaultValue: 'http://10.0.2.2:8765/sample.mp4',
+);
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();

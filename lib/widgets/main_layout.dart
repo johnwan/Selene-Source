@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:selene/services/search_service.dart';
 import 'package:selene/services/user_data_service.dart';
 import '../services/theme_service.dart';
+import '../tv/tv_device_picker.dart';
 import '../services/api_service.dart';
 import '../utils/device_utils.dart';
 import '../utils/font_utils.dart';
@@ -768,8 +769,14 @@ class _MainLayoutState extends State<MainLayout> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // 深浅模式切换按钮
-        MouseRegion(
+        // Android 显示电视连接；其他平台保留主题切换按钮。
+        if (Platform.isAndroid)
+          IconButton(
+            tooltip: '播放到电视',
+            onPressed: () => showTvDevicePicker(context),
+            icon: const Icon(Icons.tv),
+          )
+        else MouseRegion(
           cursor:
               DeviceUtils.isPC() ? SystemMouseCursors.click : MouseCursor.defer,
           onEnter: DeviceUtils.isPC()

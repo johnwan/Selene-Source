@@ -3,10 +3,11 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/user_data_service.dart';
 import '../services/playback_settings.dart';
-import '../tv/tv_device_picker.dart';
+import '../services/theme_service.dart';
 import '../screens/login_screen.dart';
 import '../services/douban_cache_service.dart';
 import '../services/page_cache_service.dart';
@@ -819,10 +820,15 @@ class _UserMenuState extends State<UserMenu> {
                       icon: LucideIcons.zap,
                     ),
                     if (Platform.isAndroid) ...[
-                      TextButton.icon(
-                        onPressed: () => showTvDevicePicker(context),
-                        icon: const Icon(Icons.tv),
-                        label: const Text('播放到电视'),
+                      _buildToggleOption(
+                        title: '深色模式',
+                        value: widget.isDarkMode,
+                        onChanged: (value) async {
+                          context.read<ThemeService>().setThemeMode(
+                            value ? ThemeMode.dark : ThemeMode.light,
+                          );
+                        },
+                        icon: LucideIcons.moon,
                       ),
                       Container(
                         height: 1,
