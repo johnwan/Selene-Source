@@ -19,7 +19,7 @@ other. Selecting a destination does not wake or launch the TV app.
 
 ## Automated checks (2026-10-29)
 
-- Phone: `flutter test --no-pub`, **31 passed**. Focused analysis of `lib/tv`,
+- Phone: `flutter test --no-pub`, **34 passed**. Focused analysis of `lib/tv`,
   `test/tv`, and the isolated device harness: **no issues**.
 - TV: `gradlew.bat testDebugUnitTest`, **202 passed**, including **16 new remote
   tests**. ARM64/ARMv7 debug builds and the x86_64 debug receiver build succeeded.
@@ -80,12 +80,15 @@ resume, pause, seek, resume, Stop, and persisted TLS/trust across receiver resta
 Provider-specific authenticated HLS/DRM, network changes during playback, and
 physical-device two-phone takeover remain manual checks.
 
-The final regular phone APK remains `org.moontechlab.selene`, version 1.6.9
-(4159), installed using a data-preserving update. The temporary phone test app
-was removed after the checks and its original 30-second screen timeout restored.
-The SHIELD test app remains signed in and the sample stream was restarted after
-the exit checks. Only the sample movie history entry was removed from the server,
-after explicit user approval. No credentials or account screenshots are committed.
+The regular phone APK is `org.moontechlab.selene`, version 1.7.0 (4160),
+installed using a data-preserving update. The SHIELD now runs the regular
+`org.moontechlab.selenetv` version 1.5.0 (20). The existing TV release had a
+different signing key, so its local data was cleared during replacement with
+the user's explicit approval; the new app was then signed in again. The local
+build uses a debug signing key, so an official release with a different key
+cannot overwrite it directly. Both temporary test apps have been removed.
+Only the sample movie history entry was removed from the server, after explicit
+user approval. No credentials or account screenshots are committed.
 
 ## Implementation decisions and independent review
 
@@ -111,10 +114,10 @@ were deferred.
 Phone production entry: `flutter build apk --debug --no-pub --target-platform
 android-arm64 -t lib/main.dart`. TV: `gradlew.bat assembleDebug`; an optional
 `-PseleneEmulatorAbi=x86_64` applies only to debug builds. Release ABI settings,
-application IDs, versions and signing configuration are unchanged.
+application IDs and signing configuration are unchanged.
 
 Local final APK copies are under the phone workspace's ignored `build/qa/final/`:
-`Selene-phone-arm64-debug.apk` and `Selene-TV-arm64-debug.apk`. The TV source
+`Selene-phone-1.7.0.apk` and `Selene-TV-1.5.0.apk`. The TV source
 checkout is `.local/Selene-TV-source`. Protocol details and shared JSON fixtures
 are committed separately in both repositories.
 
