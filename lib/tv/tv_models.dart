@@ -148,12 +148,16 @@ class TvStatus {
     this.rate = 1,
     this.capabilities = const [],
     this.error,
+    this.episodeIndex = 0,
+    this.title = '',
   });
   final String tvId, ownerClientId, sessionId, mediaId, requestId, state;
   final int positionMs, durationMs;
   final double rate;
   final List<String> capabilities;
   final String? error;
+  final int episodeIndex;
+  final String title;
   factory TvStatus.fromJson(Map<String, dynamic> j) => TvStatus(
     tvId: j['tvId'] as String? ?? '',
     ownerClientId: j['ownerClientId'] as String? ?? '',
@@ -166,6 +170,8 @@ class TvStatus {
     rate: (j['rate'] as num? ?? 1).toDouble(),
     capabilities: List<String>.from(j['capabilities'] as List? ?? []),
     error: j['error'] as String?,
+    episodeIndex: j['episodeIndex'] as int? ?? 0,
+    title: j['title'] as String? ?? '',
   );
 }
 
@@ -175,6 +181,11 @@ enum TvConnectionState {
   awaitingApproval,
   connected,
   disconnected,
+}
+
+class TvHandoff {
+  const TvHandoff(this.positionMs, this.episodeIndex);
+  final int positionMs, episodeIndex;
 }
 
 class TvFailure implements Exception {

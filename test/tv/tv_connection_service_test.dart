@@ -35,6 +35,9 @@ class FakePlatform implements TvPlatform {
 }
 
 class FakeTransport implements TvTransport {
+  final pairingSecrets = <String, String>{};
+  Map<String, dynamic>? statusOverride;
+  Completer<Map<String, dynamic>>? delayedStatus;
   Completer<void>? firstPlayGate;
   final playedTitles = <String>[];
   int pairs = 0, plays = 0, connects = 0;
@@ -50,8 +53,17 @@ class FakeTransport implements TvTransport {
     String? token,
     Map<String, dynamic>? body,
   }) async {
+    if (path == 'status' && delayedStatus != null) return delayedStatus!.future;
+    if ((path == 'status' || path == 'connect') && statusOverride != null) {
+      return Map<String, dynamic>.from(statusOverride!);
+    }
+    if (path == 'command' && body?['action'] == 'stop') {
+      statusOverride = {'tvId': d.id, 'state': 'idle'};
+      return statusOverride!;
+    }
     if (fail) throw const TvFailure('offline', 'TV offline');
     if (path == 'pair') {
+      pairingSecrets[d.id] = body!['requestSecret'] as String;
       pairs++;
       return {'pairId': 'p1', 'state': 'pending'};
     }
@@ -71,7 +83,7 @@ class FakeTransport implements TvTransport {
         'tvId': d.id,
         'ownerClientId': 'phone1',
         'sessionId': 's1',
-        'mediaId': body!['mediaId'],
+        'mediaId': body['mediaId'],
         'requestId': body['requestId'],
         'state': 'playing',
       };
@@ -117,6 +129,63 @@ void main() {
     await second;
     expect(transport.playedTitles, ['First', 'Second']);
     expect(s.media!.title, 'Second');
+  });
+  test(
+    'status captured before a new play cannot replace its new session',
+    () async {
+      await s.initialize();
+      await s.select(tv);
+      transport.delayedStatus = Completer<Map<String, dynamic>>();
+      final poll = s.refreshStatus();
+      await s.startMedia(
+        const TvMedia(title: 'New movie', url: 'https://example.com/new'),
+      );
+      final mediaId = s.status.mediaId;
+      transport.delayedStatus!.complete({
+        'tvId': 'tv1',
+        'sessionId': 'old-session',
+        'mediaId': 'old-media',
+        'requestId': 'old-request',
+        'state': 'playing',
+      });
+      await poll;
+      expect(s.status.mediaId, mediaId);
+      expect(s.status.sessionId, 's1');
+    },
+  );
+  test('handoff returns the active TV episode with its position', () async {
+    await s.initialize();
+    await s.select(tv);
+    s.status = const TvStatus(
+      tvId: 'tv1',
+      ownerClientId: 'phone1',
+      sessionId: 's1',
+      mediaId: 'episode2',
+      state: 'playing',
+      episodeIndex: 1,
+      positionMs: 60000,
+    );
+    final result = await s.handoffToLocal();
+    expect(result.episodeIndex, 1);
+    expect(result.positionMs, 60000);
+    expect(s.remoteSelected, isFalse);
+  });
+  test('each TV gets a different private pairing recovery secret', () async {
+    await s.initialize();
+    await s.select(tv);
+    await s.select(
+      const TvDevice(
+        id: 'tv2',
+        name: 'Second TV',
+        host: '192.168.1.3',
+        port: 1234,
+      ),
+    );
+    expect(
+      transport.pairingSecrets['tv1'],
+      isNot(transport.pairingSecrets['tv2']),
+    );
+    expect(transport.pairingSecrets['tv1']!.length, greaterThanOrEqualTo(32));
   });
   test(
     'approves once, persists trust and reconnects without replaying media',

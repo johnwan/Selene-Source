@@ -8,7 +8,12 @@ requires forgetting and explicitly pairing again.
 All requests are JSON, maximum 256 KiB. Public `/v1/info` returns
 `version,tvId,name,capabilities`. `/v1/pair` takes `clientId,name,requestSecret`,
 returns `pairId,state,expiresIn=60`. `/v1/pair/result` takes `pairId,requestSecret`;
-only its originating secret can obtain an approved `token,tvId`.
+only its originating secret can obtain an approved `token,tvId`. Before requesting,
+the phone persists a separate recovery secret and certificate pin for that TV.
+The TV stores its hash with the trusted phone. Repeating `/v1/pair` with the same
+client ID and secret returns `state=allowed,token,tvId`, including after restart,
+so an interrupted first approval does not require another dialog. A client ID or
+display name alone never restores trust; revocation deletes this recovery grant.
 
 Authenticated endpoints use `Authorization: Bearer <token>`:
 - `POST /v1/connect`: status only; never starts/replays media.
@@ -25,6 +30,12 @@ allowed origin-scoped HTTP headers. Only reachable HTTP(S) media is supported;
 file/content/loopback URLs are rejected. Phones never send backend passwords.
 
 TV reports idle/loading/playing/paused/ended/failed using actual player state.
+Snapshots include `episodeIndex` (zero-based) and `title`. Changing episodes with
+the TV remote changes `mediaId`; commands for the old episode are rejected.
+“Play here” first obtains an acknowledged Stop, then resumes that episode and
+position locally. Status polls that predate a newer media selection are ignored.
+Authorization is checked again after reading a control body, at dispatch, so a
+revoked phone cannot finish an already-open slow request.
 Stopping phone polling or disconnecting does not stop TV media. TV is the sole
 history/progress writer. See `test/fixtures/tv_protocol` (TV `src/test/resources`)
 for identical Dart/Kotlin JSON examples. UI selection is not part of this API.

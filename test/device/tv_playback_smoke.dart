@@ -26,8 +26,9 @@ Future<void> main() async {
   await TvConnectionService.initializeAndroid();
   final backend = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
   backend.listen((request) async {
-    if (request.uri.path == '/api/playrecords' && request.method == 'POST')
+    if (request.uri.path == '/api/playrecords' && request.method == 'POST') {
       debugPrint('QA_PHONE_PROGRESS_WRITE');
+    }
     request.response.headers.contentType = ContentType.json;
     request.response.write(
       jsonEncode(

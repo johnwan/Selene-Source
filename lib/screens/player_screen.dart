@@ -1159,6 +1159,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   );
 
   void _onTvDestinationChanged() {
+    if (mounted && _tvRoute && !_tv.mediaRequestPending && _tv.controlsOwned && _tv.status.sessionId.isNotEmpty && _tv.media?.videoId == currentID && _tv.status.episodeIndex != currentEpisodeIndex && _tv.status.episodeIndex >= 0 && _tv.status.episodeIndex < (currentDetail?.episodes.length ?? 0)) {
+      setState(() => currentEpisodeIndex = _tv.status.episodeIndex);
+    }
     if (!mounted || _handoffInFlight || _tv.destinationRevision == _tvDestinationRevision) return;
     if (!_tv.remoteSelected) { _tvDestinationRevision = _tv.destinationRevision; return; }
     if (_tv.state != TvConnectionState.connected) return;
@@ -1185,10 +1188,14 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<void> _playHere() async {
     try {
-      final position = await _tv.handoffToLocal();
+      final active = await _tv.handoffToLocal();
       if (!mounted) return;
       _tvDestinationRevision = _tv.destinationRevision;
-      _resumeStartAt = Duration(milliseconds: position);
+      if (active.episodeIndex >= 0 && active.episodeIndex < (currentDetail?.episodes.length ?? 0)) {
+        currentEpisodeIndex = active.episodeIndex;
+        _originalTvUrl = currentDetail!.episodes[active.episodeIndex];
+      }
+      _resumeStartAt = Duration(milliseconds: active.positionMs);
       setState(() => _tvRoute = false);
       WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && _originalTvUrl != null) updateVideoUrl(_originalTvUrl!, startAt: _resumeStartAt); });
     } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()))); }

@@ -79,11 +79,11 @@ Maximum body 256 KiB, maximum 2,000 episodes, maximum 16 allowed stream headers,
 **Interfaces:** Kotlin `RemoteSession.acceptPlay(clientId: String, request: PlayRequest): Acceptance`, `acceptCommand(clientId: String, request: CommandRequest): Acceptance`, `snapshot(): RemoteStatus`; Dart immutable `TvDevice`, `TvMedia`, `TvStatus`, `TvCommand`, `TvConnectionState` with JSON serializers. Milliseconds are integer fields; IDs are opaque strings.
 
 - [ ] Write fixture assertions: Dart/Kotlin decode the same movie/live/status JSON; version is exactly 1; movie starts at 42,000 ms; live has no seek capability; URL/position/rate limits reject invalid inputs.
-- [ ] Write session assertions: repeated request `r1` opens once; reuse with altered media fails; second client cannot control without takeover; a command for replaced `mediaId` fails; 129 requests leave at most 128 cached entries.
-- [ ] Run focused Flutter/JUnit tests and record expected failures before implementation.
-- [ ] Implement DTOs, validation, and thread-safe pure session acceptance. State is not marked playing until the player reports it. Publish protocol docs and fixtures to both repos.
-- [ ] Rerun focused tests; require all assertions passing and no mismatch between fixture schemas.
-- [ ] Commit the contract independently in both repositories.
+- [x] Write session assertions: repeated request `r1` opens once; reuse with altered media fails; second client cannot control without takeover; a command for replaced `mediaId` fails; 129 requests leave at most 128 cached entries.
+- [x] Run focused Flutter/JUnit tests and record expected failures before implementation.
+- [x] Implement DTOs, validation, and thread-safe pure session acceptance. State is not marked playing until the player reports it. Publish protocol docs and fixtures to both repos.
+- [x] Rerun focused tests; require all assertions passing and no mismatch between fixture schemas.
+- [x] Commit the contract independently in both repositories.
 
 ### Task 2: TV trust, TLS, discovery, and first-time approval
 
@@ -94,11 +94,11 @@ Maximum body 256 KiB, maximum 2,000 episodes, maximum 16 allowed stream headers,
 - [ ] Write tests proving decline/dismiss/60-second expiry creates no trust, only matching requestSecret retrieves approval, approved tokens persist across store reopen, revoked tokens immediately fail, and renamed phones do not gain trust by ID/name alone.
 - [ ] Write tests for one pending request, pair flood rejection, oversized JSON rejection before parsing, unauthorized control/status, TLS identity persistence and changed-identity handling. Add browser-key/text guard assertions while trust or revocation UI is open.
 - [ ] Run tests to demonstrate failures before implementing receiver behavior.
-- [ ] Implement TLS with a persisted self-signed RSA >=2048/SHA-256 identity, app-private no-backup keystore/credentials, and the existing Ktor Netty engine on a separate HTTPS listener. Verify the chosen certificate-generation utility/dependency against official APIs; do not use the TV's existing accept-all HTTP client for native control.
-- [ ] Implement versioned routes and Android NSD using actual bound port. Register only after listening succeeds; drop pending requests when TV UI is unavailable. Keep trust state out of media/account settings backups.
-- [ ] Add the global physical-remote-operated Allow/Decline dialog and trusted-phone revocation UI using existing TV focus/theme conventions. Disable old browser remote key/text injection throughout these dialogs. Show one reconnection toast per connect lifecycle, not each poll.
+- [x] Implement TLS with a persisted self-signed RSA >=2048/SHA-256 identity, app-private no-backup keystore/credentials, and the existing Ktor Netty engine on a separate HTTPS listener. Verify the chosen certificate-generation utility/dependency against official APIs; do not use the TV's existing accept-all HTTP client for native control.
+- [x] Implement versioned routes and Android NSD using actual bound port. Register only after listening succeeds; drop pending requests when TV UI is unavailable. Keep trust state out of media/account settings backups.
+- [x] Add the global physical-remote-operated Allow/Decline dialog and trusted-phone revocation UI using existing TV focus/theme conventions. Disable old browser remote key/text injection throughout these dialogs. Show one reconnection toast per connect lifecycle, not each poll.
 - [ ] Run tests plus TV debug compilation; verify receiver closes callbacks/advertisement cleanly and no Activity is retained.
-- [ ] Commit TV receiver/trust slice.
+- [x] Commit TV receiver/trust slice.
 
 ### Task 3: TV playback adapter and status through existing players
 
@@ -108,11 +108,11 @@ Maximum body 256 KiB, maximum 2,000 episodes, maximum 16 allowed stream headers,
 
 - [ ] Write fake-player assertions: media starts once at requested position/rate, explicit pause/play are idempotent, Stop releases the session, replacing media disposes the old player, stale callbacks cannot replace newer status, and absent UI returns `tv_not_ready`.
 - [ ] Write media-header tests: required UA/Referer survive HLS segment loading, credentials remain origin-scoped across redirects, rejected schemes/phone-loopback do not load; live seek is refused and live channel replacement works.
-- [ ] Run focused tests and confirm red results.
-- [ ] Connect accepted requests to the existing on-demand/live playback overlays and PlayerFactory, retaining decoder settings. Supply resolved URLs/headers through per-session data sources. Do not create a second engine or rely on identical backend/subscription configuration.
-- [ ] Export snapshots from actual player state; report loading/failed distinctly. Keep local TV controls/status synchronized, route physical Back through existing behavior, and report stopped when TV user exits. TV remains sole progress writer; no phone-side writeback.
+- [x] Run focused tests and confirm red results.
+- [x] Connect accepted requests to the existing on-demand/live playback overlays and PlayerFactory, retaining decoder settings. Supply resolved URLs/headers through per-session data sources. Do not create a second engine or rely on identical backend/subscription configuration.
+- [x] Export snapshots from actual player state; report loading/failed distinctly. Keep local TV controls/status synchronized, route physical Back through existing behavior, and report stopped when TV user exits. TV remains sole progress writer; no phone-side writeback.
 - [ ] Rerun tests and build the real TV app. Test stop, navigation exit, player disposal and one-owner takeover with fake and device playback.
-- [ ] Commit TV playback slice.
+- [x] Commit TV playback slice.
 
 ### Task 4: Phone connection service, native discovery/storage, and transport
 
@@ -120,13 +120,13 @@ Maximum body 256 KiB, maximum 2,000 episodes, maximum 16 allowed stream headers,
 
 **Interfaces:** `TvPlatform.devices: Stream<List<TvDevice>>`, `startDiscovery()`, `stopDiscovery()`, `readCredentials()/writeCredentials()/forget(tvId)`; `TvTransport.info/pair/pairResult/connect/status/play/command`; `TvConnectionService.select(device)`, `selectLocal()`, `retry()`, `forget(tvId)`, `startMedia(media,{takeOver=false})`, `send(command)`, `setForeground(bool)`. Service exposes devices/destination/status/error via ChangeNotifier and has injected clock/transport/platform for tests; no UI or BuildContext.
 
-- [ ] Write service assertions: first selection enters pending; allowed stores token/pin; later reconnect does not pair; decline does not store trust; selecting This phone clears routing; discovering another TV never selects it; reconnect never calls Play.
+- [x] Write service assertions: first selection enters pending; allowed stores token/pin; later reconnect does not pair; decline does not store trust; selecting This phone clears routing; discovering another TV never selects it; reconnect never calls Play.
 - [ ] Write tests for same-ID changed IP, different-ID reused address, certificate mismatch, auth revocation, incompatible version, network change during pairing, late polling after destination switch, background stop of polling/discovery, and foreground recovery without playback replay.
 - [ ] Write HTTPS tests with a local test server verifying mismatched certificates are rejected, pairing uses only a scoped initial trust-on-first-use client, tokens never go to arbitrary hosts/redirects, safe errors omit credentials, and body/time limits apply.
-- [ ] Run tests and confirm missing implementation fails.
-- [ ] Implement Android NSD EventChannel and app-private no-backup credential bridge, lifecycle-aware service, and pinned Dio/HttpClient transport. Use bounded timeouts and no automatic mutation retries without request IDs. Check actual target SDK and apply LAN runtime permission only where required by SDK 37+.
-- [ ] Wire service lifecycle at the app root, preserving non-Android behavior. Do not enable discovery outside foreground use or request unrelated location permissions for NSD.
-- [ ] Rerun focused Flutter tests and analysis, compile Android bridge; commit.
+- [x] Run tests and confirm missing implementation fails.
+- [x] Implement Android NSD EventChannel and app-private no-backup credential bridge, lifecycle-aware service, and pinned Dio/HttpClient transport. Use bounded timeouts and no automatic mutation retries without request IDs. Check actual target SDK and apply LAN runtime permission only where required by SDK 37+.
+- [x] Wire service lifecycle at the app root, preserving non-Android behavior. Do not enable discovery outside foreground use or request unrelated location permissions for NSD.
+- [x] Rerun focused Flutter tests and analysis, compile Android bridge; commit.
 
 ### Task 5: Replaceable picker/controller and phone playback routing
 
@@ -137,22 +137,32 @@ Maximum body 256 KiB, maximum 2,000 episodes, maximum 16 allowed stream headers,
 - [ ] Write widget tests for This phone/device list, pending approval text, denied/offline/update-required errors, and manual address fallback. Verify choosing a device invokes selection without containing HTTP/NSD logic in the widget.
 - [ ] Write routing tests: remote movie and live requests never instantiate VideoPlayerWidget, never publish a local audio-service item, and never write phone progress; starting after a TV disconnect stays remote/error until explicit Play here.
 - [ ] Write handoff tests: pause current local media, send current position, dispose only after TV reports playing; failure leaves local paused. Reverse handoff uses last position, requires acknowledged TV stop, and fails visibly if unreachable.
-- [ ] Run focused tests to establish red behavior.
-- [ ] Add a modest Android-only TV destination entry in the existing menu and a controller panel in existing player space. Reuse the service in both on-demand and live screens; pass live UA, source/episode selection, and appropriate resume position. Maintain existing DLNA behavior and standalone playback paths.
-- [ ] Ensure source changes/rapid episode taps use generation/request IDs; ignore stale acknowledgements and status; controller takeover is an explicit phone action. On app background/disposal, stop only phone polling, not TV media.
-- [ ] Rerun tests plus existing suite and focused analysis; commit.
+- [x] Run focused tests to establish red behavior.
+- [x] Add a modest Android-only TV destination entry in the existing menu and a controller panel in existing player space. Reuse the service in both on-demand and live screens; pass live UA, source/episode selection, and appropriate resume position. Maintain existing DLNA behavior and standalone playback paths.
+- [x] Ensure source changes/rapid episode taps use generation/request IDs; ignore stale acknowledgements and status; controller takeover is an explicit phone action. On app background/disposal, stop only phone polling, not TV media.
+- [x] Rerun tests plus existing suite and focused analysis; commit.
 
 ### Task 6: Integration, real builds, device evidence, and delivery
 
 **Files:** protocol/build notes in both repos; device QA entry/fixtures where needed; screenshots/test evidence without account data. No version/signing changes unless necessary and specifically documented.
 
-- [ ] Run full phone `flutter test --no-pub`, focused `flutter analyze --no-pub`, and ARM64 debug build. Run TV `gradlew.bat testDebugUnitTest`, debug build and focused lint; fix any failures introduced by this feature.
+- [x] Run full phone `flutter test --no-pub`, focused `flutter analyze --no-pub`, and ARM64 debug build. Run TV `gradlew.bat testDebugUnitTest`, debug build and focused lint; fix any failures introduced by this feature.
 - [ ] Use an Android TV emulator for repeatable first-approval/decline, reconnection, revocation, movie/live and failure tests. Use an Android test sender or phone emulator when no physical phone is connected. Configure debug x86_64 APK support only if the existing TV ABI split prevents emulator installation.
 - [ ] Test real app-to-app TLS and NSD where network permits; emulator forwarded-port tests alone do not count as NSD evidence. Report physical-TV or LAN-router cases as pending until available.
 - [ ] Verify phone screen-off/kill, TV physical controls/Back, stream failure, IP/network change, two clients/takeover and delayed commands; confirm TV playback survives disconnect and reconnect does not replay.
-- [ ] Review both final diffs, shared fixtures and credential/log handling. Commit fixes, rerun only affected checks, and document limitations accurately.
-- [ ] Build normal APKs preserving application IDs/signing; install to already-authorized phone when reachable. Obtain explicit approval before any TV replacement requiring data loss.
+- [x] Review both final diffs, shared fixtures and credential/log handling. Commit fixes, rerun only affected checks, and document limitations accurately.
+- [x] Build normal APKs preserving application IDs/signing; install to already-authorized phone when reachable. Obtain explicit approval before any TV replacement requiring data loss.
 - [ ] Deliver both repository branches/commit IDs and build locations. If creating PRs, keep them separate from PR #6, cross-link matching protocol versions, attach each created PR to this chat, and do not merge without user instruction.
+
+## Execution status (2026-10-29)
+
+Tasks 1–5 are implemented and committed in both feature branches. Automated
+checks pass, normal APKs are built, and the phone update is installed. Some
+original checklist items combine several device/provider scenarios; those remain
+unchecked where the entire matrix was not exercised. See
+[validation evidence and pending manual checks](../../phone-tv-validation.md).
+Physical TV access remains unavailable because ADB authorization is pending.
+No integration or merge has been performed.
 
 ## Plan self-review
 

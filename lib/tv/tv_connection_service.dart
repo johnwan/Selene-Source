@@ -30,6 +30,8 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
   Map<String, dynamic> _credentials = {};
   Map<String, dynamic> get _trusted =>
       Map<String, dynamic>.from(_credentials['trusted'] as Map? ?? {});
+  Map<String, dynamic> get _pendingPairings =>
+      Map<String, dynamic>.from(_credentials['pendingPairings'] as Map? ?? {});
   String get clientId => _credentials['clientId'] as String? ?? '';
   List<TvDevice> devices = [];
   TvDevice? selected;
@@ -46,6 +48,9 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
   StreamSubscription<List<TvDevice>>? _subscription;
   Timer? _poll;
   Future<void> _playQueue = Future<void>.value();
+  int _mutationRevision = 0;
+  bool _mediaPending = false;
+  bool get mediaRequestPending => _mediaPending;
   int _generation = 0, _mediaGeneration = 0;
   bool _foreground = true,
       _disposed = false,
@@ -93,21 +98,34 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
     _notify();
     try {
       var trusted = _trusted[device.id] as Map?;
+      var pending = _pendingPairings[device.id] as Map?;
       final probe = await transport.probe(
         device,
-        certificate: trusted?['certificate'] as String?,
+        certificate:
+            (trusted?['certificate'] ?? pending?['certificate']) as String?,
       );
       if (!_current(generation)) return;
       selected = probe.device;
       trusted ??= _trusted[probe.device.id] as Map?;
+      pending ??= _pendingPairings[probe.device.id] as Map?;
       if (trusted != null && trusted['certificate'] != probe.certificate) {
+        throw const TvFailure('identity_changed', '电视身份已改变，请忘记后重新连接');
+      }
+      if (pending != null && pending['certificate'] != probe.certificate) {
         throw const TvFailure('identity_changed', '电视身份已改变，请忘记后重新连接');
       }
       String token;
       if (trusted != null) {
         token = trusted['token'] as String;
       } else {
-        final secret = newTvId();
+        pending ??= {'certificate': probe.certificate, 'secret': newTvId()};
+        final pendingByTv = _pendingPairings;
+        pendingByTv[probe.device.id] = pending;
+        if (pendingByTv.length > 32) pendingByTv.remove(pendingByTv.keys.first);
+        _credentials['pendingPairings'] = pendingByTv;
+        await platform.writeCredentials(_credentials);
+        if (!_current(generation)) return;
+        final secret = pending['secret'] as String;
         final pair = await transport.request(
           probe.device,
           probe.certificate,
@@ -119,11 +137,13 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
           },
         );
         if (!_current(generation)) return;
-        state = TvConnectionState.awaitingApproval;
+        state = pair['state'] == 'allowed'
+            ? TvConnectionState.connecting
+            : TvConnectionState.awaitingApproval;
         _notify();
         final deadline = DateTime.now().add(const Duration(seconds: 60));
-        Map<String, dynamic> result;
-        while (true) {
+        Map<String, dynamic> result = pair;
+        while (result['state'] == 'pending') {
           await Future<void>.delayed(interval);
           if (!_current(generation)) return;
           result = await transport.request(
@@ -152,6 +172,8 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
           'device': probe.device.toJson(),
         };
         _credentials['trusted'] = all;
+        _credentials['pendingPairings'] = _pendingPairings
+          ..remove(probe.device.id);
       }
       final result = await transport.request(
         probe.device,
@@ -196,7 +218,7 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
     if (_initialized) await platform.writeCredentials(_credentials);
   }
 
-  Future<int> handoffToLocal() async {
+  Future<TvHandoff> handoffToLocal() async {
     if (selected == null && _detachedDevice != null) {
       await select(_detachedDevice!, automatic: true);
       if (status.sessionId != _detachedSession) {
@@ -206,7 +228,7 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
     if (selected == null || state != TvConnectionState.connected) {
       throw const TvFailure('offline', '无法确认电视停止，请重新连接电视');
     }
-    final position = status.positionMs;
+    final active = status;
     await send('stop');
     if (error != null || status.state != 'idle') {
       throw error ?? const TvFailure('request_failed', '电视尚未停止');
@@ -214,7 +236,7 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
     await selectLocal();
     _detachedDevice = null;
     _detachedSession = null;
-    return position;
+    return TvHandoff(active.positionMs, active.episodeIndex);
   }
 
   Future<bool> waitUntilPlaying() async {
@@ -236,6 +258,7 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> forget(String tvId) async {
     final all = _trusted..remove(tvId);
     _credentials['trusted'] = all;
+    _credentials['pendingPairings'] = _pendingPairings..remove(tvId);
     if (selected?.id == tvId) await selectLocal();
     await platform.writeCredentials(_credentials);
     _notify();
@@ -244,6 +267,8 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> startMedia(TvMedia value, {bool takeOver = false}) {
     if (!remoteSelected) return Future<void>.value();
     media = value;
+    _mediaPending = true;
+    ++_mutationRevision;
     final generation = _generation, mediaGeneration = ++_mediaGeneration;
     final task = _playQueue.then(
       (_) => _startMedia(value, takeOver, generation, mediaGeneration),
@@ -259,6 +284,7 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
     int mediaGeneration,
   ) async {
     if (!_current(generation) || mediaGeneration != _mediaGeneration) return;
+    final revision = ++_mutationRevision;
     try {
       value.validate();
       if (state != TvConnectionState.connected) {
@@ -273,7 +299,12 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
           'media': value.toJson(),
         },
       );
-      if (!_current(generation) || mediaGeneration != _mediaGeneration) return;
+      if (!_current(generation) ||
+          mediaGeneration != _mediaGeneration ||
+          revision != _mutationRevision) {
+        return;
+      }
+      ++_mutationRevision;
       status = TvStatus.fromJson(response);
       error = null;
       _notify();
@@ -290,16 +321,22 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
               ].contains(e.code),
         );
       }
+    } finally {
+      if (mediaGeneration == _mediaGeneration) {
+        _mediaPending = false;
+        _notify();
+      }
     }
   }
 
   Future<void> send(String action, {int? positionMs, double? rate}) async {
     final generation = _generation;
+    final revision = ++_mutationRevision;
     try {
       if (state != TvConnectionState.connected) {
         throw const TvFailure('offline', '电视未连接');
       }
-      await _call(
+      final response = await _call(
         'command',
         body: {
           'requestId': newTvId(),
@@ -310,7 +347,13 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
           'rate': ?rate,
         },
       );
-      if (_current(generation)) await refreshStatus();
+      if (_current(generation) && revision == _mutationRevision) {
+        ++_mutationRevision;
+        status = TvStatus.fromJson(response);
+        error = null;
+        _notify();
+        await refreshStatus();
+      }
     } catch (e) {
       if (_current(generation)) {
         _failed(
@@ -348,9 +391,12 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
     }
     final generation = _generation;
     _polling = true;
+    final revision = _mutationRevision;
     try {
       final value = await _call('status');
-      if (_current(generation)) {
+      if (_current(generation) &&
+          revision == _mutationRevision &&
+          !_mediaPending) {
         status = TvStatus.fromJson(value);
         _notify();
       }

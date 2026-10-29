@@ -49,7 +49,9 @@ class TvRemotePlayer extends StatelessWidget {
                 ),
                 if (service.media != null)
                   Text(
-                    service.media!.title,
+                    status.title.isNotEmpty
+                        ? status.title
+                        : service.media!.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Colors.white70),
