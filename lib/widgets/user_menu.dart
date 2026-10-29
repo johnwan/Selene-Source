@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/user_data_service.dart';
 import '../services/playback_settings.dart';
+import '../tv/tv_device_picker.dart';
 import '../screens/login_screen.dart';
 import '../services/douban_cache_service.dart';
 import '../services/page_cache_service.dart';
@@ -818,6 +819,11 @@ class _UserMenuState extends State<UserMenu> {
                       icon: LucideIcons.zap,
                     ),
                     if (Platform.isAndroid) ...[
+                      TextButton.icon(
+                        onPressed: () => showTvDevicePicker(context),
+                        icon: const Icon(Icons.tv),
+                        label: const Text('播放到电视'),
+                      ),
                       Container(
                         height: 1,
                         color: widget.isDarkMode

@@ -22,6 +22,9 @@ import '../widgets/player_details_panel.dart';
 import '../widgets/player_episodes_panel.dart';
 import '../widgets/player_sources_panel.dart';
 import '../widgets/windows_title_bar.dart';
+import '../tv/tv_connection_service.dart';
+import '../tv/tv_models.dart';
+import '../tv/tv_remote_player.dart';
 
 class PlayerScreen extends StatefulWidget {
   final String? source;
@@ -49,6 +52,13 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
+  TvConnectionService get _tv => TvConnectionService.instance;
+  bool _tvRoute = false;
+  int _tvDestinationRevision = 0;
+  String? _resolvedTvUrl;
+  String? _originalTvUrl;
+  String _tvProxyPrefix = '';
+  bool _handoffInFlight = false;
   late SystemUiOverlayStyle _originalStyle;
   bool _isInitialized = false;
   String? _errorMessage;
@@ -137,6 +147,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    _tvRoute = Platform.isAndroid && _tv.remoteSelected;
+    _tvDestinationRevision = _tv.destinationRevision;
+    if (Platform.isAndroid) _tv.addListener(_onTvDestinationChanged);
     _refreshAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
@@ -488,6 +501,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   /// 保存播放进度（同步函数，提前获取参数避免异步问题）
   void _saveProgress({bool force = false, required String scene}) {
+    if (_tvRoute) return; // The TV writes remote playback history.
     try {
       if (currentDetail == null) return;
 
@@ -657,6 +671,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     try {
       // 获取 M3U8 代理 URL
       final m3u8ProxyUrl = await UserDataService.getM3u8ProxyUrl();
+      _originalTvUrl = newUrl;
+      _tvProxyPrefix = m3u8ProxyUrl;
 
       // 如果代理 URL 不为空，则将 newUrl encode 后拼接到代理 URL 后面
       String finalUrl = newUrl;
@@ -664,6 +680,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         final encodedUrl = Uri.encodeComponent(newUrl);
         finalUrl = '$m3u8ProxyUrl$encodedUrl';
         print("使用 M3U8 代理: $finalUrl");
+      }
+
+      _resolvedTvUrl = finalUrl;
+      if (_tvRoute) {
+        await _tv.startMedia(_tvMedia(finalUrl, startAt ?? _resumeStartAt));
+        _resumeStartAt = null;
+        if (mounted) setState(() { _showSwitchLoadingOverlay = false; });
+        return;
       }
 
       if (_isCasting) {
@@ -706,6 +730,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   /// 获取当前播放位置
   Duration? get currentPosition {
+    if (_tvRoute) return Duration(milliseconds: _tv.status.positionMs);
     if (_isCasting) {
       // 投屏状态：从 DLNA 播放器获取
       return _dlnaCurrentPosition;
@@ -1061,6 +1086,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   /// 构建播放器组件
   Widget _buildPlayerWidget() {
+    if (_tvRoute) return TvRemotePlayer(service: _tv, onPlayHere: _playHere);
     final isPC = DeviceUtils.isPC();
 
     return Stack(
@@ -1124,6 +1150,48 @@ class _PlayerScreenState extends State<PlayerScreen>
         ),
       ],
     );
+  }
+
+  TvMedia _tvMedia(String url, Duration? position) => TvMedia(
+    title: videoTitle, url: url, sourceId: currentSource, videoId: currentID,
+    episodes: (currentDetail?.episodes ?? []).asMap().entries.map((e) => TvEpisode('第 ${e.key + 1} 集', _tvProxyPrefix.isEmpty ? e.value : '$_tvProxyPrefix${Uri.encodeComponent(e.value)}')).toList(),
+    episodeIndex: currentEpisodeIndex, startPositionMs: position?.inMilliseconds ?? 0,
+  );
+
+  void _onTvDestinationChanged() {
+    if (!mounted || _handoffInFlight || _tv.destinationRevision == _tvDestinationRevision) return;
+    if (!_tv.remoteSelected) { _tvDestinationRevision = _tv.destinationRevision; return; }
+    if (_tv.state != TvConnectionState.connected) return;
+    _tvDestinationRevision = _tv.destinationRevision;
+    final url = _resolvedTvUrl;
+    if (url != null) _handoffToTv(url);
+  }
+
+  Future<void> _handoffToTv(String url) async {
+    _handoffInFlight = true;
+    final controller = _videoPlayerController;
+    final position = controller?.currentPosition;
+    try {
+      await controller?.pause();
+      await _tv.startMedia(_tvMedia(url, position));
+      final playing = await _tv.waitUntilPlaying();
+      if (mounted) setState(() => _tvRoute = true);
+      if (playing) {
+        await controller?.dispose();
+        if (identical(controller, _videoPlayerController)) _videoPlayerController = null;
+      }
+    } finally { _handoffInFlight = false; }
+  }
+
+  Future<void> _playHere() async {
+    try {
+      final position = await _tv.handoffToLocal();
+      if (!mounted) return;
+      _tvDestinationRevision = _tv.destinationRevision;
+      _resumeStartAt = Duration(milliseconds: position);
+      setState(() => _tvRoute = false);
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && _originalTvUrl != null) updateVideoUrl(_originalTvUrl!, startAt: _resumeStartAt); });
+    } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()))); }
   }
 
   /// 投屏开始回调
@@ -2599,6 +2667,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   @override
   void dispose() {
+    if (Platform.isAndroid) _tv.removeListener(_onTvDestinationChanged);
     // 保存进度
     _saveProgress(force: true, scene: '页面销毁');
     // 移除视频进度监听器

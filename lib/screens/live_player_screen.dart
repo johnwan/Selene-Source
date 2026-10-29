@@ -15,6 +15,9 @@ import '../widgets/windows_title_bar.dart';
 import '../widgets/switch_loading_overlay.dart';
 import '../widgets/filter_pill_hover.dart';
 import '../widgets/filter_options_selector.dart';
+import '../tv/tv_connection_service.dart';
+import '../tv/tv_models.dart';
+import '../tv/tv_remote_player.dart';
 
 class LivePlayerScreen extends StatefulWidget {
   final LiveChannel channel;
@@ -32,6 +35,11 @@ class LivePlayerScreen extends StatefulWidget {
 
 class _LivePlayerScreenState extends State<LivePlayerScreen>
     with TickerProviderStateMixin {
+  TvConnectionService get _tv => TvConnectionService.instance;
+  bool _tvRoute = false;
+  int _tvDestinationRevision = 0;
+  bool _remoteStartScheduled = false;
+  String? _lastRemoteChannel;
   late SystemUiOverlayStyle _originalStyle;
   bool _isInitialized = false;
   late LiveChannel _currentChannel;
@@ -78,6 +86,9 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
   @override
   void initState() {
     super.initState();
+    _tvRoute = Platform.isAndroid && _tv.remoteSelected;
+    _tvDestinationRevision = _tv.destinationRevision;
+    if (Platform.isAndroid) _tv.addListener(_tvChanged);
     _currentChannel = widget.channel;
     _currentSource = widget.source;
 
@@ -173,6 +184,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
 
   @override
   void dispose() {
+    if (Platform.isAndroid) _tv.removeListener(_tvChanged);
     // 恢复原始的系统UI样式
     SystemChrome.setSystemUIOverlayStyle(_originalStyle);
     _programScrollController.dispose();
@@ -598,6 +610,20 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
 
   /// 构建播放器组件
   Widget _buildPlayerWidget() {
+    if (_tvRoute) {
+      final key = '${_currentSource.key}:${_currentChannel.id}:${_currentChannel.url}';
+      if (!_remoteStartScheduled && _lastRemoteChannel != key) {
+        _remoteStartScheduled = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          _remoteStartScheduled = false;
+          if (!mounted || !_tvRoute) return;
+          _lastRemoteChannel = key;
+          await _tv.startMedia(TvMedia(kind: 'live', title: _currentChannel.name, url: _currentChannel.url, sourceId: _currentSource.key, liveChannelId: _currentChannel.id, headers: {'User-Agent': _currentSource.ua.isNotEmpty ? _currentSource.ua : 'AptvPlayer/1.4.10'}));
+          if (mounted) setState(() { _isLoading = false; });
+        });
+      }
+      return TvRemotePlayer(service: _tv, onPlayHere: _playHere);
+    }
     final videoUrl = _currentChannel.url;
     return VideoPlayerWidget(
       surface: DeviceUtils.isPC()
@@ -628,6 +654,24 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
       onReady: _onVideoPlayerReady,
       live: true,
     );
+  }
+
+  void _tvChanged() {
+    if (!mounted || _tvDestinationRevision == _tv.destinationRevision) return;
+    if (!_tv.remoteSelected) { _tvDestinationRevision = _tv.destinationRevision; return; }
+    if (_tv.state != TvConnectionState.connected) return;
+    _tvDestinationRevision = _tv.destinationRevision;
+    _videoPlayerController?.pause();
+    setState(() { _tvRoute = true; _lastRemoteChannel = null; });
+  }
+
+  Future<void> _playHere() async {
+    try {
+      await _tv.handoffToLocal();
+      if (!mounted) return;
+      _tvDestinationRevision = _tv.destinationRevision;
+      setState(() { _tvRoute = false; });
+    } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()))); }
   }
 
   /// 构建手机模式布局
