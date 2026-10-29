@@ -1,6 +1,9 @@
 # Phone-controlled Selene-TV playback
 
-Status: design for user review; product implementation has not started.
+Status: approved by the user on 2026-10-29; implementation planning in progress.
+
+User clarification: discovery/selection UI may change later. Keep discovery,
+trust, transport, and playback routing independent of the selection widget.
 
 ## Intent and agreed behavior
 
