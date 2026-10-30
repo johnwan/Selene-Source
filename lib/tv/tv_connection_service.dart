@@ -290,13 +290,17 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
       if (state != TvConnectionState.connected) {
         throw const TvFailure('offline', '电视未连接，请重试连接');
       }
+      final mediaJson = value.toJson();
+      if (!(selected?.capabilities.contains('coverMetadata') ?? false)) {
+        mediaJson.remove('coverUrl');
+      }
       final response = await _call(
         'play',
         body: {
           'requestId': newTvId(),
           'mediaId': newTvId(),
           'takeOver': takeOver,
-          'media': value.toJson(),
+          'media': mediaJson,
         },
       );
       if (!_current(generation) ||

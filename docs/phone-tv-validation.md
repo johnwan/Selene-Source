@@ -34,6 +34,12 @@ other. Selecting a destination does not wake or launch the TV app.
   new play request; its metadata is retained for the current phone app process.
   It starts as a compact icon, supports long-press dragging, expands on tap,
   and automatically collapses after three seconds without interaction.
+- Cover regressions verify optional metadata, old-TV compatibility, preservation
+  of existing watch-record covers, and a single server-proxy retry for eligible
+  external images. Local/private-address image URLs do not use that fallback.
+  Server-proxy access was confirmed for the previously unreachable image host;
+  its returned image was itself a generic “No Posters” placeholder, so proxy
+  success alone does not guarantee that a real poster exists at the source.
 - TV `lintDebug` reports **11 existing errors** in `MainActivity.kt` back-event
   handling and `SoftwareCodec.kt` opt-in declarations. Those declarations are
   present in the TV base commit; the feature adds no lint errors. Flutter also

@@ -45,6 +45,7 @@ class HttpsTvTransport implements TvTransport {
         name: info['name'] as String,
         host: device.host,
         port: device.port,
+        capabilities: List<String>.from(info['capabilities'] as List? ?? []),
       ),
       observed!,
     );

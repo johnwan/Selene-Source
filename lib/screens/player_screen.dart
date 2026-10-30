@@ -1167,6 +1167,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   TvMedia _tvMedia(String url, Duration? position) => TvMedia(
     title: videoTitle, url: url, sourceId: currentSource, videoId: currentID,
+    coverUrl: (currentDetail?.poster.isNotEmpty ?? false) ? currentDetail!.poster : (doubanDetails?.poster ?? ''),
     episodes: (currentDetail?.episodes ?? []).asMap().entries.map((e) => TvEpisode('第 ${e.key + 1} 集', _tvProxyPrefix.isEmpty ? e.value : '$_tvProxyPrefix${Uri.encodeComponent(e.value)}')).toList(),
     episodeIndex: currentEpisodeIndex, startPositionMs: position?.inMilliseconds ?? 0,
   );

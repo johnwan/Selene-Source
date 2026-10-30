@@ -5,9 +5,11 @@ class TvDevice {
     required this.host,
     required this.port,
     this.version = 1,
+    this.capabilities = const [],
   });
   final String id, name, host;
   final int port, version;
+  final List<String> capabilities;
   Uri endpoint(String path) =>
       Uri(scheme: 'https', host: host, port: port, path: '/v1/$path');
   factory TvDevice.fromJson(Map<String, dynamic> j) => TvDevice(
@@ -16,6 +18,7 @@ class TvDevice {
     host: j['host'] as String,
     port: j['port'] as int,
     version: j['version'] as int? ?? 1,
+    capabilities: List<String>.from(j['capabilities'] as List? ?? []),
   );
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -23,6 +26,7 @@ class TvDevice {
     'host': host,
     'port': port,
     'version': version,
+    if (capabilities.isNotEmpty) 'capabilities': capabilities,
   };
 }
 
@@ -47,8 +51,10 @@ class TvMedia {
     this.startPositionMs = 0,
     this.rate = 1,
     this.liveChannelId = '',
+    this.coverUrl = '',
   });
   final String kind, title, url, sourceId, videoId, liveChannelId;
+  final String coverUrl;
   final Map<String, String> headers;
   final List<TvEpisode> episodes;
   final int episodeIndex, startPositionMs;
@@ -67,6 +73,7 @@ class TvMedia {
     startPositionMs: j['startPositionMs'] as int? ?? 0,
     rate: (j['rate'] as num? ?? 1).toDouble(),
     liveChannelId: j['liveChannelId'] as String? ?? '',
+    coverUrl: j['coverUrl'] as String? ?? '',
   );
   Map<String, dynamic> toJson() => {
     'kind': kind,
@@ -80,6 +87,7 @@ class TvMedia {
     'startPositionMs': startPositionMs,
     'rate': rate,
     'liveChannelId': liveChannelId,
+    if (coverUrl.isNotEmpty) 'coverUrl': coverUrl,
   };
   void validate() {
     void checkUrl(String value) {

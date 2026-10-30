@@ -51,7 +51,12 @@ void main() {
       request.response.headers.contentType = ContentType.json;
       if (request.uri.path.endsWith('/info')) {
         request.response.write(
-          jsonEncode({'version': 1, 'tvId': 'test-tv', 'name': 'Test TV'}),
+          jsonEncode({
+            'version': 1,
+            'tvId': 'test-tv',
+            'name': 'Test TV',
+            'capabilities': ['coverMetadata'],
+          }),
         );
       } else if (request.uri.path.endsWith('/status')) {
         request.response.statusCode = 302;
@@ -75,6 +80,7 @@ void main() {
     () async {
       final probe = await transport.probe(device);
       expect(probe.certificate, isNotEmpty);
+      expect(probe.device.capabilities, contains('coverMetadata'));
       await transport.request(
         device,
         probe.certificate,

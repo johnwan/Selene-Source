@@ -40,6 +40,7 @@ class FakeTransport implements TvTransport {
   Completer<Map<String, dynamic>>? delayedStatus;
   Completer<void>? firstPlayGate;
   final playedTitles = <String>[];
+  final playedPayloads = <Map<String, dynamic>>[];
   int pairs = 0, plays = 0, connects = 0;
   bool deny = false, fail = false;
   @override
@@ -77,7 +78,8 @@ class FakeTransport implements TvTransport {
     if (path == 'connect') connects++;
     if (path == 'play') {
       plays++;
-      playedTitles.add((body!['media'] as Map)['title'] as String);
+      playedPayloads.add(Map<String, dynamic>.from(body!['media'] as Map));
+      playedTitles.add((body['media'] as Map)['title'] as String);
       if (plays == 1 && firstPlayGate != null) await firstPlayGate!.future;
       return {
         'tvId': d.id,
@@ -98,6 +100,37 @@ void main() {
   late FakePlatform platform;
   late FakeTransport transport;
   late TvConnectionService s;
+  test('cover is sent only to TVs advertising support', () async {
+    final platform = FakePlatform();
+    final transport = FakeTransport();
+    final service = TvConnectionService(
+      platform: platform,
+      transport: transport,
+      interval: const Duration(milliseconds: 1),
+    );
+    await service.initialize();
+    const movie = TvMedia(
+      title: 'Movie',
+      url: 'https://example.com/video',
+      coverUrl: 'https://example.com/cover.jpg',
+    );
+    await service.select(tv);
+    await service.startMedia(movie);
+    expect(transport.playedPayloads.last.containsKey('coverUrl'), isFalse);
+    await service.select(
+      const TvDevice(
+        id: 'tv2',
+        name: 'New TV',
+        host: '192.168.1.3',
+        port: 1234,
+        capabilities: ['coverMetadata'],
+      ),
+    );
+    await service.startMedia(movie);
+    expect(transport.playedPayloads.last['coverUrl'], movie.coverUrl);
+    service.dispose();
+    await platform.events.close();
+  });
   setUp(() {
     platform = FakePlatform();
     transport = FakeTransport();

@@ -5,6 +5,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:selene/tv/tv_models.dart';
 
 void main() {
+  test(
+    'remote media carries cover metadata without altering legacy payloads',
+    () {
+      const media = TvMedia(
+        title: 'Movie',
+        url: 'https://example.com/v',
+        coverUrl: 'https://images.example.com/poster.jpg',
+      );
+      expect(
+        TvMedia.fromJson(media.toJson()).coverUrl,
+        'https://images.example.com/poster.jpg',
+      );
+      expect(
+        const TvMedia(
+          title: 'Movie',
+          url: 'https://example.com/v',
+        ).toJson().containsKey('coverUrl'),
+        isFalse,
+      );
+    },
+  );
   test('shared movie fixture preserves selected position and episode', () {
     final json = jsonDecode(
       File('test/fixtures/tv_protocol/movie.json').readAsStringSync(),

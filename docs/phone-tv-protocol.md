@@ -15,6 +15,13 @@ client ID and secret returns `state=allowed,token,tvId`, including after restart
 so an interrupted first approval does not require another dialog. A client ID or
 display name alone never restores trust; revocation deletes this recovery grant.
 
+Receivers that support movie cover metadata advertise `coverMetadata` in
+`/v1/info.capabilities`. Only for those receivers, the phone can add optional
+`coverUrl` to a movie descriptor. It omits this field for older v1 receivers,
+which reject unknown JSON fields. A missing or invalid cover never blocks
+playback; the TV preserves the existing watch-record cover if it cannot replace
+it with a valid image URL.
+
 Authenticated endpoints use `Authorization: Bearer <token>`:
 - `POST /v1/connect`: status only; never starts/replays media.
 - `GET /v1/status`: current player snapshot.
