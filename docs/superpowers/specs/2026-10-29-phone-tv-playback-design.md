@@ -29,8 +29,10 @@ requirements supplied by the user:
 - First release: Android phone plus Android TV. Other phone/desktop platforms
   keep existing behavior; cross-platform discovery can follow later.
 - Discover TVs automatically while the phone app is foregrounded. Connect only
-  after the user selects a TV the first time, then reconnect to the last selected
-  trusted TV when it is reachable. Never choose an arbitrary new TV.
+  after the user explicitly selects a TV in the current app session. A fresh
+  app launch defaults to local playback, retaining trust without restoring the
+  previous destination (user clarification on 2026-10-30). An explicitly selected
+  TV may reconnect within that session when it becomes reachable.
 - TV app must be running and its UI available for initial approval and remote
   playback. Waking a powered-off TV or opening Selene-TV over other apps is out
   of scope. Wired TVs on the same reachable LAN are also supported.

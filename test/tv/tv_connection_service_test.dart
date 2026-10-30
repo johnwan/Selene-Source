@@ -97,6 +97,47 @@ class FakeTransport implements TvTransport {
 const tv = TvDevice(id: 'tv1', name: 'TV', host: '192.168.1.2', port: 1234);
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('saved TV is not selected automatically after app restart', () async {
+    final platform = FakePlatform();
+    platform.saved['lastSelected'] = tv.id;
+    platform.saved['trusted'] = {
+      tv.id: {'certificate': 'certificate', 'token': 'token'},
+    };
+    final transport = FakeTransport();
+    final service = TvConnectionService(
+      platform: platform,
+      transport: transport,
+    );
+    await service.initialize();
+    platform.events.add([tv]);
+    await Future<void>.delayed(Duration.zero);
+    expect(service.remoteSelected, isFalse);
+    expect(transport.connects, 0);
+    await service.setForeground(false);
+    await service.setForeground(true);
+    platform.events.add([tv]);
+    await Future<void>.delayed(Duration.zero);
+    expect(service.remoteSelected, isFalse);
+    expect(transport.connects, 0);
+
+    // Trust survives, so deliberate selection does not require approval again.
+    await service.select(tv);
+    expect(service.state, TvConnectionState.connected);
+    expect(transport.pairs, 0);
+    expect(transport.plays, 0);
+    await service.startMedia(
+      const TvMedia(
+        title: 'Movie',
+        url: 'https://example.com/video',
+        episodeIndex: 1,
+        startPositionMs: 42000,
+      ),
+    );
+    expect(transport.playedPayloads.single['episodeIndex'], 1);
+    expect(transport.playedPayloads.single['startPositionMs'], 42000);
+    service.dispose();
+    await platform.events.close();
+  });
   late FakePlatform platform;
   late FakeTransport transport;
   late TvConnectionService s;

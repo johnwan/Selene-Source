@@ -5,6 +5,12 @@ physical TV Allow/Decline, then a private bearer token reconnects without prompt
 Discovery TXT: `id`, `name`, `version=1`; never credentials. A changed TLS identity
 requires forgetting and explicitly pairing again.
 
+Phone startup always selects local playback. Saved trust allows prompt-free
+connections only after the user explicitly selects a TV in that app session;
+discovery alone never restores the previous destination. The player's Cast menu
+prioritizes the native Selene TV option above generic DLNA devices. Selecting it
+during local movie playback hands off the current episode and position.
+
 All requests are JSON, maximum 256 KiB. Public `/v1/info` returns
 `version,tvId,name,capabilities`. `/v1/pair` takes `clientId,name,requestSecret`,
 returns `pairId,state,expiresIn=60`. `/v1/pair/result` takes `pairId,requestSecret`;

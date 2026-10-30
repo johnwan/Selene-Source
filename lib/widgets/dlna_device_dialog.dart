@@ -1,6 +1,11 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:dlna_dart/dlna.dart';
+import '../tv/selene_tv_cast_option.dart';
+import '../tv/tv_connection_service.dart';
+import '../tv/tv_device_picker.dart';
+import '../tv/tv_models.dart';
 
 class DLNADeviceDialog extends StatefulWidget {
   final String currentUrl;
@@ -113,6 +118,17 @@ class _DLNADeviceDialogState extends State<DLNADeviceDialog> {
     _startScanning();
   }
 
+  Future<void> _selectSeleneTv() async {
+    await showTvDevicePicker(context);
+    // PlayerScreen owns the handoff, including the local playback position.
+    // Do not issue another Play request from the device-selection UI.
+    if (mounted &&
+        TvConnectionService.instance.remoteSelected &&
+        TvConnectionService.instance.state == TvConnectionState.connected) {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -154,7 +170,12 @@ class _DLNADeviceDialogState extends State<DLNADeviceDialog> {
               ],
             ),
             const SizedBox(height: 16),
-            
+            if (Platform.isAndroid) ...[
+              SeleneTvCastOption(onTap: _selectSeleneTv),
+              const SizedBox(height: 16),
+              const Text('其他投屏设备 · DLNA'),
+              const SizedBox(height: 8),
+            ],
             // 扫描状态
             Container(
               padding: const EdgeInsets.all(12),

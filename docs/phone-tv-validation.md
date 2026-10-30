@@ -6,6 +6,15 @@ unchanged. Install matching phone and TV builds; this protocol is version 1.
 
 ## Using the feature
 
+The phone now starts with local playback on every fresh launch, retaining saved
+TV trust without selecting a destination. During local playback, open the
+player's Cast button: **Selene TV** appears first with **局域网直连 · 继承当前播放进度**,
+followed by **其他投屏设备 · DLNA**. Selecting a Selene TV transfers the current
+movie episode and position. Returning from remote playback on TV refreshes its
+home history; a successful final progress save triggers another refresh so the
+return cannot precede the saved record. Older in-flight home requests cannot
+overwrite a newer refresh.
+
 Open Selene-TV and keep it in the foreground. On Android Selene, open the user
 menu and choose **播放到电视**, then select the TV. The TV remote must approve
 the first connection with **允许**; subsequent connections reuse stored trust.
@@ -18,6 +27,15 @@ shown in the TV's **已信任的手机** panel. Both devices still need to reach
 other. Selecting a destination does not wake or launch the TV app.
 
 ## Automated checks (2026-10-29)
+
+Follow-up checks on 2026-10-30: phone full suite **38 passed**, focused analysis
+**no issues**, ARM64 debug build passed; TV **205 tests passed** and both ARM
+debug APKs built. The regular phone 1.7.0 (4160) and TV 1.5.0 (20) updates were
+installed with `adb install -r`. The physical SHIELD renders its home after a
+fresh launch. The new cast-menu/position-handoff and immediate-home-refresh
+journey still needs a physical-device check with the phone unlocked; automated
+coverage verifies local startup after rediscovery/resume, retained trust,
+explicit selection, and episode/position payloads.
 
 - Phone: `flutter test --no-pub`, **34 passed**. Focused analysis of `lib/tv`,
   `test/tv`, and the isolated device harness: **no issues**.

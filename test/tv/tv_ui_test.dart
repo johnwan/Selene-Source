@@ -4,10 +4,25 @@ import 'package:selene/tv/tv_device_picker.dart';
 import 'package:selene/tv/tv_remote_player.dart';
 import 'package:selene/tv/tv_connection_service.dart';
 import 'package:selene/tv/tv_models.dart';
+import 'package:selene/tv/selene_tv_cast_option.dart';
 
 import 'tv_connection_service_test.dart' show FakePlatform, FakeTransport, tv;
 
 void main() {
+  testWidgets('cast menu offers a distinctly labeled Selene TV entry', (
+    tester,
+  ) async {
+    var selected = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: SeleneTvCastOption(onTap: () => selected = true)),
+      ),
+    );
+    expect(find.text('Selene TV'), findsOneWidget);
+    expect(find.text('局域网直连 · 继承当前播放进度'), findsOneWidget);
+    await tester.tap(find.text('Selene TV'));
+    expect(selected, isTrue);
+  });
   testWidgets('play after stop starts a new TV session', (tester) async {
     final platform = FakePlatform();
     final transport = FakeTransport();

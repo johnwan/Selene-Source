@@ -66,8 +66,9 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
     _subscription = platform.devices.listen(
       (values) {
         devices = values;
-        final last = _credentials['lastSelected'] as String?;
-        final current = selected?.id ?? last;
+        // Discovery may reconnect an explicitly selected TV in this process,
+        // but must not select the previous destination after an app restart.
+        final current = selected?.id;
         final found = values.where((d) => d.id == current).firstOrNull;
         if (_foreground &&
             found != null &&
