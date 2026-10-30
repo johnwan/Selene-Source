@@ -59,6 +59,10 @@ class FakeTransport implements TvTransport {
       return Map<String, dynamic>.from(statusOverride!);
     }
     if (path == 'command' && body?['action'] == 'stop') {
+      // The real TV removes its command handler after the player exits.
+      if ((body?['sessionId'] as String? ?? '').isEmpty) {
+        throw const TvFailure('tv_not_ready', '请在电视上打开 Selene-TV');
+      }
       statusOverride = {'tvId': d.id, 'state': 'idle'};
       return statusOverride!;
     }
@@ -243,6 +247,98 @@ void main() {
     expect(result.episodeIndex, 1);
     expect(result.positionMs, 60000);
     expect(s.remoteSelected, isFalse);
+  });
+  test(
+    'play here after Stop resumes the stopped episode without another Stop',
+    () async {
+      await s.initialize();
+      await s.select(tv);
+      s.status = const TvStatus(
+        tvId: 'tv1',
+        ownerClientId: 'phone1',
+        sessionId: 's1',
+        mediaId: 'episode2',
+        state: 'playing',
+        episodeIndex: 1,
+        positionMs: 60000,
+      );
+      await s.send('stop');
+      expect(s.status.state, 'idle');
+
+      final result = await s.handoffToLocal();
+      expect(result.episodeIndex, 1);
+      expect(result.positionMs, 60000);
+      expect(s.state, TvConnectionState.local);
+      expect(s.remoteSelected, isFalse);
+      expect(s.error, isNull);
+    },
+  );
+  test(
+    'play here after TV Back uses the last active episode and position',
+    () async {
+      await s.initialize();
+      await s.select(tv);
+      s.status = const TvStatus(
+        tvId: 'tv1',
+        ownerClientId: 'phone1',
+        sessionId: 's1',
+        mediaId: 'episode3',
+        state: 'playing',
+        episodeIndex: 2,
+        positionMs: 42000,
+      );
+      transport.statusOverride = {'tvId': 'tv1', 'state': 'idle'};
+      await s.refreshStatus();
+
+      final result = await s.handoffToLocal();
+      expect(result.episodeIndex, 2);
+      expect(result.positionMs, 42000);
+      expect(s.state, TvConnectionState.local);
+    },
+  );
+  test(
+    'an idle second TV never inherits the first TV playback position',
+    () async {
+      await s.initialize();
+      await s.select(tv);
+      s.status = const TvStatus(
+        tvId: 'tv1',
+        ownerClientId: 'phone1',
+        sessionId: 's1',
+        mediaId: 'episode2',
+        state: 'playing',
+        episodeIndex: 1,
+        positionMs: 60000,
+      );
+      await s.select(
+        const TvDevice(
+          id: 'tv2',
+          name: 'Second TV',
+          host: '192.168.1.3',
+          port: 1234,
+        ),
+      );
+      final result = await s.handoffToLocal();
+      expect(result.episodeIndex, 0);
+      expect(result.positionMs, 0);
+    },
+  );
+  test('an unreachable active TV still blocks local handoff', () async {
+    await s.initialize();
+    await s.select(tv);
+    s.status = const TvStatus(
+      tvId: 'tv1',
+      ownerClientId: 'phone1',
+      sessionId: 's1',
+      mediaId: 'episode2',
+      state: 'playing',
+      episodeIndex: 1,
+      positionMs: 60000,
+    );
+    transport.fail = true;
+    await s.refreshStatus();
+    await expectLater(s.handoffToLocal(), throwsA(isA<TvFailure>()));
+    expect(s.remoteSelected, isTrue);
   });
   test('each TV gets a different private pairing recovery secret', () async {
     await s.initialize();

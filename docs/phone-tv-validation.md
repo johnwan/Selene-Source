@@ -28,6 +28,14 @@ other. Selecting a destination does not wake or launch the TV app.
 
 ## Automated checks (2026-10-29)
 
+Stopped-player handoff regression (2026-10-30): phone **42 tests passed** and
+focused analysis reported **no issues**. Stop and TV Back both release the TV
+command handler; switching to phone playback now skips a redundant Stop for a
+confirmed idle receiver and resumes the last known episode/position. Cached
+resume data is isolated by TV identity and cleared for a new media request.
+An unreachable TV with an active session still requires confirmation before
+local playback can begin.
+
 Follow-up checks on 2026-10-30: phone full suite **38 passed**, focused analysis
 **no issues**, ARM64 debug build passed; TV **205 tests passed** and both ARM
 debug APKs built. The regular phone 1.7.0 (4160) and TV 1.5.0 (20) updates were

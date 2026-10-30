@@ -45,6 +45,7 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
   int destinationRevision = 0;
   TvDevice? _detachedDevice;
   String? _detachedSession;
+  TvHandoff? _stoppedHandoff;
   StreamSubscription<List<TvDevice>>? _subscription;
   Timer? _poll;
   Future<void> _playQueue = Future<void>.value();
@@ -90,6 +91,7 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> select(TvDevice device, {bool automatic = false}) async {
+    if (selected?.id != device.id) _stoppedHandoff = null;
     if (!automatic) destinationRevision++;
     final generation = ++_generation;
     _poll?.cancel();
@@ -186,7 +188,7 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
       _credentials['lastSelected'] = probe.device.id;
       await platform.writeCredentials(_credentials);
       if (!_current(generation)) return;
-      status = TvStatus.fromJson(result);
+      _updateStatus(TvStatus.fromJson(result));
       state = TvConnectionState.connected;
       _schedulePolling();
       _notify();
@@ -212,6 +214,7 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
     selected = null;
     media = null;
     status = const TvStatus();
+    _stoppedHandoff = null;
     error = null;
     state = TvConnectionState.local;
     _credentials.remove('lastSelected');
@@ -229,15 +232,20 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
     if (selected == null || state != TvConnectionState.connected) {
       throw const TvFailure('offline', '无法确认电视停止，请重新连接电视');
     }
-    final active = status;
-    await send('stop');
-    if (error != null || status.state != 'idle') {
-      throw error ?? const TvFailure('request_failed', '电视尚未停止');
+    final active =
+        _stoppedHandoff ?? TvHandoff(status.positionMs, status.episodeIndex);
+    // An idle receiver has already released its player and command handler.
+    // Sending Stop again would fail with tv_not_ready instead of playing here.
+    if (status.state != 'idle' || status.sessionId.isNotEmpty) {
+      await send('stop');
+      if (error != null || status.state != 'idle') {
+        throw error ?? const TvFailure('request_failed', '电视尚未停止');
+      }
     }
     await selectLocal();
     _detachedDevice = null;
     _detachedSession = null;
-    return TvHandoff(active.positionMs, active.episodeIndex);
+    return active;
   }
 
   Future<bool> waitUntilPlaying() async {
@@ -267,6 +275,7 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> startMedia(TvMedia value, {bool takeOver = false}) {
     if (!remoteSelected) return Future<void>.value();
+    _stoppedHandoff = null;
     media = value;
     _mediaPending = true;
     ++_mutationRevision;
@@ -310,7 +319,7 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
         return;
       }
       ++_mutationRevision;
-      status = TvStatus.fromJson(response);
+      _updateStatus(TvStatus.fromJson(response));
       error = null;
       _notify();
     } catch (e) {
@@ -354,7 +363,7 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
       );
       if (_current(generation) && revision == _mutationRevision) {
         ++_mutationRevision;
-        status = TvStatus.fromJson(response);
+        _updateStatus(TvStatus.fromJson(response));
         error = null;
         _notify();
         await refreshStatus();
@@ -402,7 +411,7 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
       if (_current(generation) &&
           revision == _mutationRevision &&
           !_mediaPending) {
-        status = TvStatus.fromJson(value);
+        _updateStatus(TvStatus.fromJson(value));
         _notify();
       }
     } catch (e) {
@@ -410,6 +419,21 @@ class TvConnectionService extends ChangeNotifier with WidgetsBindingObserver {
     } finally {
       _polling = false;
     }
+  }
+
+  void _updateStatus(TvStatus value) {
+    if (value.state == 'idle' &&
+        value.sessionId.isEmpty &&
+        value.tvId == status.tvId &&
+        status.sessionId.isNotEmpty &&
+        controlsOwned) {
+      // Stop and TV Back return an empty idle snapshot. Keep the last known
+      // episode/position for a subsequent explicit handoff to this phone.
+      _stoppedHandoff = TvHandoff(status.positionMs, status.episodeIndex);
+    } else if (value.sessionId.isNotEmpty) {
+      _stoppedHandoff = null;
+    }
+    status = value;
   }
 
   void _schedulePolling() {
